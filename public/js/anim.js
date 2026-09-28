@@ -242,6 +242,18 @@ function camera(spec, w, h) {
   return { s, X: (x) => ox + x * s, Y: (y) => oy - y * s, W, h, w, fpx: Math.round(Math.max(12, Math.min(22, h * 0.068))) };
 }
 
+// Draw a label that always fits inside the canvas (shrinks, then shifts inward).
+function fitLabel(ctx, cam, text, x, y, px, weight) {
+  const maxW = cam.w - 16;
+  let size = px;
+  ctx.font = `${weight} ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  let tw = ctx.measureText(text).width;
+  while (tw > maxW && size > 9) { size -= 1; ctx.font = `${weight} ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`; tw = ctx.measureText(text).width; }
+  const cx = Math.max(8 + tw / 2, Math.min(cam.w - 8 - tw / 2, x));
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(text, cx, y);
+}
+
 function drawProps(ctx, cam, spec, t) {
   const P = spec.props || {}, { X, Y, s } = cam;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -303,10 +315,9 @@ function drawProps(ctx, cam, spec, t) {
   }
   (P.labels || []).forEach((L) => {
     if (L.t0 !== undefined && (t < L.t0 || t > L.t1)) return;
+    if (!L.text) return;
     ctx.fillStyle = L.accent ? THEME.signal : THEME.text;
-    ctx.font = `${L.bold ? 800 : 700} ${L.size ? Math.round(L.size * s) : cam.fpx}px "Barlow Condensed", "Arial Narrow", sans-serif`;
-    ctx.textAlign = L.align || "center"; ctx.textBaseline = "middle";
-    ctx.fillText(L.text, X(L.x), Y(L.y));
+    fitLabel(ctx, cam, L.text, X(L.x), Math.max(cam.fpx * 0.7, Y(L.y)), L.size ? Math.round(L.size * s) : cam.fpx, L.bold ? 800 : 700);
   });
 }
 
@@ -410,9 +421,9 @@ function drawTop(ctx, cam, spec, t) {
   }
   (P.labels || []).forEach((L) => {
     if (L.t0 !== undefined && (t < L.t0 || t > L.t1)) return;
+    if (!L.text) return;
     ctx.fillStyle = L.accent ? THEME.signal : THEME.text;
-    ctx.font = `700 ${L.size ? Math.round(L.size * s) : cam.fpx}px "Barlow Condensed", sans-serif`; ctx.textAlign = L.align || "center"; ctx.textBaseline = "middle";
-    ctx.fillText(L.text, X(L.x), Y(L.y));
+    fitLabel(ctx, cam, L.text, X(L.x), Y(L.y), L.size ? Math.round(L.size * s) : cam.fpx, 700);
   });
   if (!spec.path) return;
   const st = sampleTop(spec.path, t, spec.dur);
