@@ -1,0 +1,48 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check setup
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT (see README)."
+            exit 1
+          fi
+          PROJECT=$(jq -r .projects.default .firebaserc)
+          if [ "$PROJECT" = "REPLACE_WITH_FIREBASE_PROJECT_ID" ]; then
+            echo "::error::Set the Firebase project id in .firebaserc (see README)."
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH" public/js/firebase-config.js firestore.rules; then
+            echo "::error::firebase-config.js or firestore.rules still has placeholders (see README)."
+            exit 1
+          fi
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+
+      - name: Deploy hosting and Firestore rules
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only hosting,firestore:rules --project "$PROJECT" --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

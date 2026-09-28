@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-player="harvell">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Streak Court</title>
+<meta name="description" content="Daily basketball training for Harvell (U10) and Jasper (U14): guided timers, drill animations, streaks and personal bests.">
+<meta name="theme-color" content="#15130F">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Streak Court">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<section class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <svg viewBox="0 0 32 32" width="56" height="56" aria-hidden="true"><circle cx="16" cy="16" r="14" style="fill:var(--accent)"/><path d="M2 16h28M16 2v28M6.5 6.5c4.5 4 4.5 15 0 19M25.5 6.5c-4.5 4-4.5 15 0 19" fill="none" style="stroke:var(--bg)" stroke-width="1.8"/></svg>
+    <h1>STREAK COURT</h1>
+    <p id="gate-text">Sign in to track Harvell's and Jasper's training.</p>
+    <button type="button" class="gbtn" id="signin"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.7-4.2-13.6-9.9l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>Sign in with Google</button>
+    <button type="button" class="linkbtn" id="gate-signout" hidden>Use another account</button>
+    <p class="err" id="gate-err" role="alert"></p>
+  </div>
+</section>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" style="fill:var(--accent)"/><path d="M2 16h28M16 2v28M6.5 6.5c4.5 4 4.5 15 0 19M25.5 6.5c-4.5 4-4.5 15 0 19" fill="none" style="stroke:var(--bg)" stroke-width="1.8"/></svg>
+      <h1>STREAK COURT</h1>
+    </div>
+    <div class="top-right">
+      <span class="chip" id="sync">Connecting…</span>
+      <button class="icon-btn" id="soundBtn" type="button" aria-pressed="true">Sound on</button>
+      <button class="linkbtn" id="signout" type="button">Sign out</button>
+    </div>
+  </header>
+  <div class="demo-banner" id="demo" hidden>Demo mode: Firebase isn't connected yet, so progress is saved on this device only.</div>
+
+  <div class="players" role="group" aria-label="Choose player">
+    <button class="player-btn" type="button" data-p="harvell" aria-pressed="true"><span class="pn">HARVELL</span><span class="pg">U10</span></button>
+    <button class="player-btn" type="button" data-p="jasper" aria-pressed="false"><span class="pn">JASPER</span><span class="pg">U14</span></button>
+  </div>
+
+  <section class="hero" id="hero" aria-label="Streak"></section>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-today" data-tab="today" aria-selected="true" type="button">Today</button>
+    <button class="tab" role="tab" id="tab-week" data-tab="week" aria-selected="false" type="button">Week plan</button>
+    <button class="tab" role="tab" id="tab-progress" data-tab="progress" aria-selected="false" type="button">Progress</button>
+    <button class="tab" role="tab" id="tab-guide" data-tab="guide" aria-selected="false" type="button">Coach guide</button>
+  </nav>
+
+  <main id="panel" role="tabpanel" aria-live="polite"></main>
+</div>
+
+<div class="timer" id="timer" hidden role="dialog" aria-modal="true" aria-labelledby="t-name">
+  <div class="t-top"><span id="t-block"></span><span id="t-count"></span><button class="t-x" id="t-close" type="button" aria-label="Close timer">Close</button></div>
+  <div class="t-bar"><i id="t-prog"></i></div>
+  <div class="t-stage" id="t-stage">
+    <canvas id="t-canvas" aria-label="Animated demo of the current drill" role="img"></canvas>
+    <span class="tag" id="t-tag">How to</span>
+    <button type="button" class="vbtn" id="t-video"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Real demo</button>
+  </div>
+  <div class="t-main" id="t-run">
+    <div class="t-kind" id="t-kind">Work</div>
+    <h2 class="t-name" id="t-name"></h2>
+    <div class="t-set" id="t-set"></div>
+    <div class="t-clock" id="t-clock">0:00</div>
+    <div class="t-signal" id="t-signal"></div>
+    <p class="t-cue" id="t-cue"></p>
+  </div>
+  <div class="t-finish" id="t-finish" hidden></div>
+  <div class="t-next" id="t-next"></div>
+  <div class="t-ctrl" id="t-ctrl">
+    <button type="button" id="t-back">Back</button>
+    <button type="button" id="t-play" class="primary">Pause</button>
+    <button type="button" id="t-skip">Skip</button>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="m-title"></h3><button type="button" class="btn ghost" id="m-close">Close</button></div>
+    <div class="modal-body" id="m-body"></div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

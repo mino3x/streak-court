@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Only the Google accounts listed in allowed() can read or write anything.
+// To add or remove someone, edit the list below and push to GitHub.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'REPLACE_WITH_ALLOWED_EMAIL@gmail.com'
+        ];
+    }
+
+    function validLog(id) {
+      let d = request.resource.data;
+      return d.player in ['harvell', 'jasper']
+        && d.date is string
+        && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && id == d.player + '_' + d.date
+        && d.mode in ['full', 'lite']
+        && d.blocks is map
+        && d.complete is bool
+        && d.keys().hasOnly(['player', 'date', 'mode', 'blocks', 'score', 'tests', 'complete', 'updatedAt', 'updatedBy']);
+    }
+
+    // One document per player per day: logs/{player}_{yyyy-mm-dd}
+    match /logs/{id} {
+      allow read: if allowed();
+      allow create, update: if allowed() && validLog(id);
+      allow delete: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

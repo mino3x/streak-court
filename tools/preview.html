@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+body{margin:0;background:#ddd;font:12px sans-serif}
+.row{display:flex;gap:4px;align-items:center;margin:4px}
+.row b{width:150px;font-size:12px}
+canvas{width:190px;height:130px;background:#fff}
+</style></head>
+<body><div id="out"></div>
+<script type="module">
+import { drawFrame } from "../public/js/anim.js";
+import { ANIMS } from "../public/js/drills.js";
+const q = new URLSearchParams(location.search);
+const ids = (q.get("ids") || Object.keys(ANIMS).join(",")).split(",");
+const N = +(q.get("n") || 7);
+const out = document.getElementById("out");
+for (const id of ids) {
+  const spec = ANIMS[id];
+  const row = document.createElement("div"); row.className = "row";
+  const b = document.createElement("b"); b.textContent = id + " (" + (spec ? spec.view : "?") + ")"; row.appendChild(b);
+  out.appendChild(row);
+  if (!spec) continue;
+  for (let i = 0; i < N; i++) {
+    const c = document.createElement("canvas"); row.appendChild(c);
+    try { drawFrame(c, spec, spec.dur * i / N); } catch (e) { b.textContent += " ERR " + e.message; }
+  }
+}
+window.__done = true;
+</script></body></html>
