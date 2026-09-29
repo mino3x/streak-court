@@ -128,5 +128,6 @@ await check("unknown collections are closed", () => assertFails(setDoc(doc(kid, 
 
 await env.cleanup();
 console.log("\n" + passed + " passed, " + failed + " failed");
+console.log("::notice title=Rules tests::" + passed + " passed, " + failed + " failed");
 if (failed) console.log("::error title=Rules tests::" + failed + " rules test(s) failed");
 process.exit(failed ? 1 : 0);
