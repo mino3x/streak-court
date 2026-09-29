@@ -13,9 +13,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -27,22 +27,50 @@ jobs:
             echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT (see README)."
             exit 1
           fi
+          if ! printf '%s' "$SA" | jq -e '.type == "service_account" and (.client_email | length > 0) and (.private_key | length > 0)' > /dev/null 2>&1; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not a complete service-account JSON. Paste the whole file, from the first { to the last }."
+            exit 1
+          fi
           PROJECT=$(jq -r .projects.default .firebaserc)
           if [ "$PROJECT" = "REPLACE_WITH_FIREBASE_PROJECT_ID" ]; then
             echo "::error::Set the Firebase project id in .firebaserc (see README)."
+            exit 1
+          fi
+          SA_PROJECT=$(printf '%s' "$SA" | jq -r .project_id)
+          if [ "$SA_PROJECT" != "$PROJECT" ]; then
+            echo "::error::The service account belongs to project '$SA_PROJECT' but .firebaserc says '$PROJECT'."
             exit 1
           fi
           if grep -q "REPLACE_WITH" public/js/firebase-config.js firestore.rules; then
             echo "::error::firebase-config.js or firestore.rules still has placeholders (see README)."
             exit 1
           fi
+          echo "::notice::Deploying $PROJECT as $(printf '%s' "$SA" | jq -r .client_email)"
           echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
 
       - name: Deploy hosting and Firestore rules
         env:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
+          # Send the tail of a log file to the job's annotations (readable without downloading logs).
+          annotate() {
+            local title="$1" file="$2" lines="$3"
+            [ -s "$file" ] || return 0
+            local body
+            body=$(tail -n "$lines" "$file" | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=$title::$body"
+          }
           printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@15 deploy --only hosting,firestore:rules --project "$PROJECT" --non-interactive
+          set -o pipefail
+          status=0
+          npx --yes firebase-tools@15 deploy --only hosting,firestore:rules --project "$PROJECT" --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log" || status=$?
           rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$status" -ne 0 ]; then
+            annotate "firebase deploy output" "$RUNNER_TEMP/deploy.log" 30
+            if [ -f firebase-debug.log ]; then
+              grep -iE "error|denied|permission|forbidden|not enabled|has not been used|40[0-9]|50[0-9]" firebase-debug.log > "$RUNNER_TEMP/debug-errors.log" || true
+              annotate "firebase-debug.log" "$RUNNER_TEMP/debug-errors.log" 20
+            fi
+            exit "$status"
+          fi
