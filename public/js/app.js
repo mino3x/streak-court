@@ -1,23 +1,46 @@
-import { CHALLENGES, TESTS, HANDLES, PROGRAM, WEEKDAYS, DAY_LONG, DAY_SHORT, BADGES } from "./program.js";
+import { CHALLENGES, TESTS, PROGRAM_DAYS, WEEK_MAX, PHASES, GROUPS, AGES, groupForAge, sessionFor, phaseOf, isTestDay, BADGES, MILESTONES } from "./program.js";
 import { animFor } from "./drills.js";
 import { Player } from "./anim.js";
 import { videoFor, embedUrl, watchUrl } from "./videos.js";
+import { dayXp, targetFor, XP_RULES, TARGETS, fmtXp } from "./scoring.js";
+import { AVATARS, avatarHtml, nicknameProblem, cleanNickname } from "./avatars.js";
+import { keyOf, addDays, isWeekday, today, mondayOf, currentStreak, longestStreak, sessionsBefore, weekCount, liveStreak, liveWeekXp, nextStats } from "./stats.js";
 import * as store from "./store.js";
 
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
 
-/* ---------------- Blocks & segments ---------------- */
-function blocksFor(p, day, mode) {
-  const P = PROGRAM[p], D = P.days[day];
-  const warm = { id: "warmup", kind: "Injury-proof warm-up", title: "Warm-up", items: P.warmup };
-  const ath = { id: "athletic", kind: "Athletic", title: D.athletic.title, items: D.athletic.items, test: !!D.athletic.test };
-  const han = { id: "handles", kind: "Handles", title: "Handles circuit", items: HANDLES };
-  const ski = { id: "skill", kind: "Basketball", title: D.skill.title, items: D.skill.items, ch: D.skill.ch };
-  const str = { id: "strength", kind: "Strength & core", title: D.strength.title, items: D.strength.items };
-  if (mode === "lite") {
-    const chItem = D.skill.items.filter((it) => it.t === "challenge");
-    return [warm, han, { id: "challenge", kind: "Basketball", title: CHALLENGES[D.skill.ch].label, items: chItem, ch: D.skill.ch }];
-  }
+/* ---------------- state ---------------- */
+const state = {
+  user: null, prof: { state: "loading" }, tab: "today", sound: lsGet("sc.sound", true), modePref: "full",
+  viewGroup: lsGet("sc.viewGroup", "10-11"), mapDay: null, makeup: false, status: "connecting", wantCard: false,
+  board: { kind: "week", filter: "all", cache: {}, loading: false, error: "" }, confirmDelete: false
+};
+let logs = {};
+
+const pub = () => (state.prof.state === "ready" ? state.prof.pub : null);
+const isPlayer = () => !!pub();
+const myGroup = () => (pub() ? pub().group : state.viewGroup);
+const myAge = () => { const a = state.prof.priv && state.prof.priv.age; return a || (myGroup() === "10-11" ? 10 : 12); };
+const myUid = () => (pub() ? pub().uid : null);
+const tk = () => keyOf(today());
+const idFor = (date) => myUid() + "_" + date;
+const todayLog = () => (isPlayer() ? logs[idFor(tk())] || null : null);
+const allLogs = () => Object.values(logs).filter(Boolean);
+const daysDone = () => allLogs().filter((l) => l.complete).length;
+function todayN() { const l = todayLog(); return l && l.day ? l.day : sessionsBefore(logs, tk()) + 1; }
+const todaySession = () => sessionFor(myGroup(), todayN());
+
+/* ---------------- blocks & segments ---------------- */
+function blocksFor(s, mode) {
+  const warm = { id: "warmup", kind: "Injury-proof warm-up", title: "Warm-up", items: s.warmup };
+  const ath = { id: "athletic", kind: "Athletic", title: s.athletic.title, items: s.athletic.items, test: s.test };
+  const han = { id: "handles", kind: "Handles", title: s.handles.title, items: s.handles.items };
+  const ski = { id: "skill", kind: "Basketball", title: s.skill.title, items: s.skill.items, ch: s.ch };
+  const str = { id: "strength", kind: "Strength & core", title: s.strength.title, items: s.strength.items };
+  if (mode === "lite") return [warm, han, { id: "challenge", kind: "Basketball", title: CHALLENGES[s.ch].label, items: s.skill.items.filter((it) => it.t === "challenge"), ch: s.ch }];
   return [warm, ath, han, ski, str];
 }
 function expand(items) {
@@ -42,207 +65,303 @@ function itemTime(it) {
   if (it.x > 1) return it.x + " × " + it.s + " s";
   return (it.s >= 60 && it.s % 60 === 0) ? (it.s / 60) + " min" : it.s + " s";
 }
+const requiredBlocks = (mode) => (mode === "lite" ? ["warmup", "handles", "challenge"] : ["warmup", "athletic", "handles", "skill", "strength"]);
+const blockDone = (b, id) => (id === "challenge" ? !!(b.challenge || b.skill) : !!b[id]);
+const blocksDoneCount = (l) => requiredBlocks(l.mode).filter((id) => blockDone(l.blocks || {}, id)).length;
+const isComplete = (l) => requiredBlocks(l.mode).every((id) => blockDone(l.blocks || {}, id));
 
-/* ---------------- Dates ---------------- */
-const pad = (n) => String(n).padStart(2, "0");
-const keyOf = (d) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-const parseKey = (k) => { const a = k.split("-"); return new Date(+a[0], +a[1] - 1, +a[2]); };
-const addDays = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; };
-const dow = (d) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
-const isWeekday = (d) => d.getDay() !== 0 && d.getDay() !== 6;
-const today = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
-
-function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
-
-const state = { player: lsGet("sc.player", "harvell"), tab: "today", viewDay: null, modePref: "full", sound: lsGet("sc.sound", true), user: null, status: "connecting" };
-if (!PROGRAM[state.player]) state.player = "harvell";
-
-/* ---------------- Logs ---------------- */
-let logs = {};
-const logId = (p, date) => p + "_" + date;
-const logsOf = (p) => Object.values(logs).filter((l) => l && l.player === p);
-const getLog = (p, date) => logs[logId(p, date)] || null;
-const requiredBlocks = (mode) => mode === "lite" ? ["warmup", "handles", "challenge"] : ["warmup", "athletic", "handles", "skill", "strength"];
-function isComplete(l) {
-  const b = l.blocks || {};
-  return requiredBlocks(l.mode).every((id) => id === "challenge" ? !!(b.challenge || b.skill) : !!b[id]);
-}
-function updateLog(p, date, fn) {
-  const cur = getLog(p, date);
-  const l = cur ? JSON.parse(JSON.stringify(cur)) : { player: p, date, mode: state.modePref, blocks: {}, score: null, tests: {}, complete: false };
-  fn(l);
-  l.complete = isComplete(l);
-  const wasComplete = cur ? !!cur.complete : false;
-  logs[logId(p, date)] = l;
-  render();
-  store.saveLog(l).catch((e) => { console.error(e); toast("Couldn't save. Check your connection and try again."); });
-  if (l.complete && !wasComplete) celebrateDay(p);
-  return l;
+/* ---------------- training rules for today ---------------- */
+function trainState() {
+  const t = today(), k = keyOf(t);
+  if (!isPlayer()) return { ok: false, reason: "viewer" };
+  if (todayLog()) return { ok: true };
+  if (weekCount(logs, k) >= WEEK_MAX) return { ok: false, reason: "week" };
+  if (!isWeekday(t)) return state.makeup ? { ok: true, makeup: true } : { ok: false, reason: "weekend" };
+  return { ok: true };
 }
 
-/* ---------------- Streaks & bests ---------------- */
-function doneSet(p) { const s = {}; logsOf(p).forEach((l) => { if (l.complete) s[l.date] = true; }); return s; }
-function currentStreak(p) {
-  const done = doneSet(p), tk = keyOf(today());
-  let d = today(), n = 0;
-  for (let g = 0; g < 4000; g++) {
-    if (isWeekday(d)) { const k = keyOf(d); if (done[k]) n++; else if (k !== tk) break; }
-    d = addDays(d, -1);
-  }
-  return n;
-}
-function nextWeekdayKey(k) { let d = addDays(parseKey(k), 1); while (!isWeekday(d)) d = addDays(d, 1); return keyOf(d); }
-function longestStreak(p) {
-  const keys = Object.keys(doneSet(p)).filter((k) => isWeekday(parseKey(k))).sort();
-  let best = 0, run = 0, prev = null;
-  keys.forEach((k) => { run = (prev && nextWeekdayKey(prev) === k) ? run + 1 : 1; best = Math.max(best, run); prev = k; });
-  return best;
-}
-const totalDays = (p) => logsOf(p).filter((l) => l.complete).length;
-function history(p, metric) {
-  return logsOf(p).map((l) => {
+/* ---------------- bests ---------------- */
+function history(metric) {
+  return allLogs().map((l) => {
     let v = null;
     if (metric.type === "ch" && l.score && l.score.id === metric.id) v = l.score.value;
     if (metric.type === "test" && l.tests && typeof l.tests[metric.id] === "number") v = l.tests[metric.id];
     return v === null || v === undefined ? null : { date: l.date, v: Number(v) };
-  }).filter(Boolean).sort((a, b) => a.date < b.date ? -1 : 1);
+  }).filter(Boolean).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
-function best(p, metric, excludeDate) {
-  const h = history(p, metric).filter((x) => x.date !== excludeDate);
+function best(metric, excludeDate) {
+  const h = history(metric).filter((x) => x.date !== excludeDate);
   return h.length ? Math.max(...h.map((x) => x.v)) : null;
 }
-function challengesFor(p) { const seen = []; WEEKDAYS.forEach((d) => { const c = PROGRAM[p].days[d].skill.ch; if (!seen.includes(c)) seen.push(c); }); return seen; }
+function pbToday(l) {
+  let pb = false;
+  if (l.score && typeof l.score.value === "number") { const b0 = best({ type: "ch", id: l.score.id }, l.date); if (b0 !== null && l.score.value > b0) pb = true; }
+  Object.keys(l.tests || {}).forEach((tid) => { const b0 = best({ type: "test", id: tid }, l.date); if (b0 !== null && l.tests[tid] > b0) pb = true; });
+  return pb;
+}
+function challengesForGroup(g) {
+  const seen = [];
+  for (let n = 1; n <= 10; n++) { const c = sessionFor(g, n).ch; if (!seen.includes(c)) seen.push(c); }
+  return seen;
+}
 
-/* ---------------- Icons ---------------- */
+/* ---------------- saving today ---------------- */
+function updateToday(fn) {
+  const P = pub(); if (!P) return null;
+  const date = tk(), id = idFor(date), cur = logs[id];
+  const s = todaySession();
+  const l = cur ? JSON.parse(JSON.stringify(cur)) : { uid: P.uid, date, day: s.n, group: P.group, mode: state.modePref, blocks: {}, score: null, tests: {}, complete: false, xp: 0, parts: {} };
+  fn(l);
+  l.group = P.group;
+  l.complete = isComplete(l);
+  const after = Object.assign({}, logs, { [id]: l });
+  const streak = currentStreak(after, date);
+  const parts = dayXp({ blocksDone: blocksDoneCount(l), chId: l.score ? l.score.id : null, value: l.score ? l.score.value : null, age: myAge(), pb: pbToday(l), complete: l.complete, streak });
+  l.xp = parts.total; l.parts = { blocks: parts.blocks, challenge: parts.challenge, pb: parts.pb, streak: parts.streak }; l.updatedAt = Date.now();
+  const wasComplete = cur ? !!cur.complete : false;
+  const stats = store.logsReady() ? nextStats(P, { date, dayXp: l.xp, dayDone: l.complete, logsAfter: after }) : null;
+  logs = after;
+  if (stats) Object.assign(P, stats);
+  render();
+  store.saveDay(l, stats).catch((e) => { console.error(e); toast("Couldn't save. Check your connection and try again."); });
+  if (l.complete && !wasComplete) celebrateDay(l);
+  return l;
+}
+
+/* ---------------- icons ---------------- */
 const ICON = {
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>',
-  flame: '<svg viewBox="0 0 34 42" aria-hidden="true"><path d="M17 2c2 8 12 12 12 24a12 12 0 0 1-24 0c0-6 3-10 6-13 0 5 2 8 5 9-2-7 0-14 1-20z" style="fill:var(--accent)"/><path d="M17 22c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 4 3 4-1-3-1-6 0-9z" style="fill:var(--bg)"/></svg>',
+  flame: '<svg viewBox="0 0 34 42" aria-hidden="true"><path d="M17 2c2 8 12 12 12 24a12 12 0 0 1-24 0c0-6 3-10 6-13 0 5 2 8 5 9-2-7 0-14 1-20z" style="fill:var(--accent)"/><path d="M17 22c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 4 3 4-1-3-1-6 0-9z" style="fill:var(--surface)"/></svg>',
+  flameSm: '<svg viewBox="0 0 34 42" aria-hidden="true"><path d="M17 2c2 8 12 12 12 24a12 12 0 0 1-24 0c0-6 3-10 6-13 0 5 2 8 5 9-2-7 0-14 1-20z" fill="currentColor"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>',
-  badge: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="3"/><path d="M9 20h30M24 5v30M14 9c4 4 4 18 0 22M34 9c-4 4-4 18 0 22" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 33l-3 12 11-5 11 5-3-12" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>'
+  badge: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="3"/><path d="M9 20h30M24 5v30M14 9c4 4 4 18 0 22M34 9c-4 4-4 18 0 22" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 33l-3 12 11-5 11 5-3-12" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>',
+  cap: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z" fill="currentColor"/><path d="M6 11.5V16c3 2.5 9 2.5 12 0v-4.5l-6 3z" fill="currentColor"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 function arrowSvg(dir) {
   const rot = dir === "left" ? 180 : dir === "up" ? -90 : 0;
   return '<svg viewBox="0 0 100 100" aria-label="' + dir + '" role="img"><g transform="rotate(' + rot + ' 50 50)"><path d="M12 50h62M52 24l26 26-26 26" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
 }
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/* ---------------- Render ---------------- */
+/* ---------------- render ---------------- */
+function tabsFor() { return isPlayer() ? ["today", "program", "board", "progress", "guide"] : ["program", "board", "guide"]; }
+const TAB_LABEL = { today: "Today", program: "Program", board: '<span class="lg">Leaderboard</span><span class="sm">Ranks</span>', progress: "Progress", guide: "Guide" };
 function render() {
-  document.documentElement.setAttribute("data-player", state.player);
-  document.querySelectorAll(".player-btn").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === state.player)));
-  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
+  document.documentElement.setAttribute("data-group", myGroup());
+  if (!tabsFor().includes(state.tab)) state.tab = tabsFor()[0];
+  $("tabs").innerHTML = tabsFor().map((t) => '<button class="tab" role="tab" id="tab-' + t + '" data-tab="' + t + '" aria-selected="' + (t === state.tab) + '" type="button">' + TAB_LABEL[t] + '</button>').join("");
   const sb = $("soundBtn"); sb.textContent = state.sound ? "Sound on" : "Sound off"; sb.setAttribute("aria-pressed", String(state.sound));
-  renderHero();
+  const P = pub();
+  $("meBtn").innerHTML = P ? avatarHtml(P.avatar, "sm") + '<span>' + esc(P.nickname) + '</span>' : '<span>Coach view</span>';
+  $("viewerbar").hidden = isPlayer();
+  if (!isPlayer()) $("viewerbar").innerHTML = viewerBar();
+  $("hero").hidden = !isPlayer() || state.tab !== "today";
+  if (isPlayer()) renderHero();
   const panel = $("panel");
   panel.setAttribute("aria-labelledby", "tab-" + state.tab);
-  panel.innerHTML = state.tab === "today" ? viewToday() : state.tab === "week" ? viewWeek() : state.tab === "progress" ? viewProgress() : viewGuide();
+  const v = { today: viewToday, program: viewProgram, board: viewBoard, progress: viewProgress, guide: viewGuide }[state.tab];
+  panel.innerHTML = v();
+}
+
+function viewerBar() {
+  const btn = (g) => '<button class="player-btn" type="button" data-vgroup="' + g + '" aria-pressed="' + (state.viewGroup === g) + '"><span class="pn">' + esc(GROUPS[g].label.toUpperCase()) + '</span><span class="pg">' + (g === "10-11" ? "U12" : "U16") + '</span></button>';
+  return '<div class="note"><b>Coach view.</b> Browse the program for either age group and follow the leaderboard. Players sign in on their own phones and make their own player card.</div>' +
+    '<div class="players" role="group" aria-label="Age group">' + btn("10-11") + btn("12-15") + '</div>' +
+    '<div><button type="button" class="btn ghost" data-act="make-card">Make a player card on this account</button></div>';
 }
 
 function renderHero() {
-  const p = state.player, cur = currentStreak(p), lon = longestStreak(p);
-  const t = today(), monday = addDays(t, -((t.getDay() + 6) % 7)), done = doneSet(p);
-  const dots = WEEKDAYS.map((d, i) => {
-    const dd = addDays(monday, i), k = keyOf(dd);
-    let cls = "dot", inner = DAY_SHORT[d].charAt(0);
-    if (done[k]) { cls += " done"; inner = ICON.check; }
-    else if (k === keyOf(t)) cls += " today";
+  const P = pub(), t = today(), k = keyOf(t);
+  const cur = currentStreak(logs, k), lon = longestStreak(logs), monday = mondayOf(t);
+  const doneSet = new Set(allLogs().filter((l) => l.complete).map((l) => l.date));
+  const dots = ["Mon", "Tue", "Wed", "Thu", "Fri"].map((d, i) => {
+    const dd = addDays(monday, i), kk = keyOf(dd);
+    let cls = "dot", inner = d.charAt(0);
+    if (doneSet.has(kk)) { cls += " done"; inner = ICON.check; }
+    else if (kk === k) cls += " today";
     else if (dd < t) { cls += " miss"; inner = ICON.x; }
-    return '<div class="wd"><div class="' + cls + '" aria-label="' + DAY_LONG[d] + (done[k] ? " done" : "") + '">' + inner + '</div><span>' + DAY_SHORT[d].toUpperCase() + '</span></div>';
+    return '<div class="wd"><div class="' + cls + '" aria-label="' + d + (doneSet.has(kk) ? " done" : "") + '">' + inner + '</div><span>' + d.toUpperCase() + '</span></div>';
   }).join("");
-  const nb = BADGES.find((b) => b.n > cur);
-  const nbHtml = nb
-    ? '<div class="nextbadge"><div class="nb-row"><span>Next badge: <b>' + nb.label + '</b></span><span>' + cur + ' / ' + nb.n + '</span></div><div class="bar"><i style="width:' + Math.min(100, Math.round(cur / nb.n * 100)) + '%"></i></div></div>'
-    : '<div class="nextbadge"><div class="nb-row"><b>Every badge unlocked.</b></div></div>';
-  const todayDone = done[keyOf(t)];
-  const sub = !isWeekday(t) ? "Weekend rest. The streak waits for Monday." : todayDone ? "Today is done. See you tomorrow." : cur > 0 ? "Train today to keep it alive." : "Finish today's session to start one.";
+  const done = daysDone(), shown = Math.min(done, PROGRAM_DAYS);
+  const seg = PHASES.map((ph) => {
+    const len = ph.to - ph.from + 1, fill = Math.max(0, Math.min(len, shown - ph.from + 1));
+    return '<i style="flex:' + len + '"><u style="width:' + Math.round(fill / len * 100) + '%"></u></i>';
+  }).join("");
+  const n = todayN(), ph = phaseOf(Math.min(n, PROGRAM_DAYS));
+  const progLbl = done >= PROGRAM_DAYS ? "<b>Graduated.</b> Bonus days: " + (done - PROGRAM_DAYS) : "<b>" + done + " of " + PROGRAM_DAYS + "</b> days done · " + esc(ph.name);
+  const wk = weekCount(logs, k) + (todayLog() && todayLog().complete ? 1 : 0);
+  const ts = trainState(), tl = todayLog();
+  const sub = tl && tl.complete ? "Today is done. See you tomorrow." : ts.reason === "week" ? "5 sessions this week. Rest up." : ts.reason === "weekend" ? "Weekend rest. The streak waits for Monday." : cur > 0 ? "Train today to keep it alive." : "Finish today's session to start one.";
   $("hero").innerHTML =
-    '<div class="streak"><div class="streak-num">' + ICON.flame + '<b>' + cur + '</b></div><div><div class="streak-lbl">Day streak</div><div class="streak-sub">Best: ' + lon + ' · Total: ' + totalDays(p) + '</div></div></div>' +
-    '<div class="hero-right"><div class="week" aria-label="This week">' + dots + '</div>' + nbHtml + '<div class="streak-sub">' + sub + '</div></div>';
+    '<div class="streak"><div class="streak-num">' + ICON.flame + '<b>' + cur + '</b></div><div><div class="streak-lbl">Day streak</div><div class="streak-sub">Best ' + lon + ' · ' + fmtXp(P.xp) + ' XP</div></div></div>' +
+    '<div class="hero-right"><div class="week" aria-label="This week">' + dots + '</div>' +
+    '<div class="prog"><div class="nb-row"><span>' + progLbl + '</span><span>' + wk + '/' + WEEK_MAX + ' this week</span></div><div class="phasebar" aria-hidden="true">' + seg + '</div></div>' +
+    '<div class="streak-sub">' + sub + '</div></div>';
 }
 
-const currentDayKey = () => isWeekday(today()) ? dow(today()) : null;
-const currentMode = () => { const l = getLog(state.player, keyOf(today())); return l ? l.mode : state.modePref; };
-
-function viewToday() {
-  const p = state.player, P = PROGRAM[p], tk = keyOf(today()), td = currentDayKey();
-  const day = state.viewDay || td || "mon";
-  const isToday = day === td;
-  const log = isToday ? getLog(p, tk) : null;
-  const mode = log ? log.mode : state.modePref;
-  const blocks = blocksFor(p, day, mode);
+/* ---------------- session blocks (shared by Today and the program map) ---------------- */
+function blocksHtml(s, mode, ctx, log, counting) {
   const b = (log && log.blocks) || {};
-  const total = blocks.reduce((a, bl) => a + blockSecs(bl), 0);
-  const chips = WEEKDAYS.map((d) => '<button type="button" class="daychip" data-day="' + d + '" aria-pressed="' + (d === day) + '">' + DAY_SHORT[d] + (d === td ? '<span class="t">TODAY</span>' : '') + '</button>').join("");
-  let html = '<div class="dayhead"><div class="daychips" role="group" aria-label="Day">' + chips + '</div>';
-  html += '<div class="daytitle"><h2>' + DAY_LONG[day] + ' · ' + esc(P.days[day].athletic.title) + '</h2><span class="chip">' + fmtMin(total) + ' total</span></div>';
-  if (!td) html += '<div class="note">It\'s the weekend: rest days. Play another sport or just play. Showing ' + DAY_LONG[day] + '\'s plan as a preview.</div>';
-  else if (!isToday) html += '<div class="note">Preview of ' + DAY_LONG[day] + '. Only today\'s session counts toward the streak.</div>';
-  html += '</div>';
-  const full = blocksFor(p, day, "full").reduce((a, x) => a + blockSecs(x), 0), lite = blocksFor(p, day, "lite").reduce((a, x) => a + blockSecs(x), 0);
-  html += '<div class="mode" role="group" aria-label="Session length">' +
-    '<button type="button" data-mode="full" aria-pressed="' + (mode === "full") + '"' + (isToday ? '' : ' disabled') + '><b>Full session</b><small>' + fmtMin(full) + '</small></button>' +
-    '<button type="button" data-mode="lite" aria-pressed="' + (mode === "lite") + '"' + (isToday ? '' : ' disabled') + '><b>Team practice day</b><small>' + fmtMin(lite) + ' · still counts</small></button></div>';
-  if (log && log.complete) {
-    const cs = currentStreak(p);
-    html += '<div class="done-banner">' + ICON.check + '<div><b>Day complete</b><span>Streak: ' + cs + ' day' + (cs === 1 ? '' : 's') + '. Rest well tonight (' + P.sleep + ' of sleep).</span></div></div>';
-  }
-  html += '<div class="blocks">';
-  blocks.forEach((bl) => {
-    const isDone = !!b[bl.id] || (bl.id === "challenge" && !!b.skill);
+  return '<div class="blocks">' + blocksFor(s, mode).map((bl) => {
+    const isDone = blockDone(b, bl.id);
     const items = bl.items.map((it, idx) => {
       const canPrev = it.t !== "rest" && !!animFor(it.L ? it.n + " · Left" : it.n);
       return '<li class="' + (it.t === "challenge" ? "ch" : "") + '"><span class="in">' + esc(it.n) + '</span><span class="it">' + itemTime(it) + (it.r ? ' · rest ' + it.r + ' s' : '') + '</span>' +
-        (canPrev ? '<button type="button" class="pv prev" data-preview="' + bl.id + ':' + idx + '" aria-label="Show how to do ' + esc(it.n) + '">' + ICON.play + '</button>' : '<span></span>') +
+        (canPrev ? '<button type="button" class="pv prev" data-preview="' + ctx + ':' + bl.id + ':' + idx + '" aria-label="Show how to do ' + esc(it.n) + '">' + ICON.play + '</button>' : '<span></span>') +
         '<span class="ic">' + esc(it.c) + '</span></li>';
     }).join("");
-    html += '<article class="block' + (isDone ? ' is-done' : '') + '"><div class="bmain">' +
-      '<button type="button" class="check" data-toggle="' + bl.id + '" aria-label="Mark ' + esc(bl.title) + (isDone ? ' not done' : ' done') + '"' + (isToday ? '' : ' disabled') + '>' + ICON.check + '</button>' +
+    return '<article class="block' + (isDone ? ' is-done' : '') + '"><div class="bmain">' +
+      (counting ? '<button type="button" class="check" data-toggle="' + bl.id + '" aria-label="Mark ' + esc(bl.title) + (isDone ? ' not done' : ' done') + '">' + ICON.check + '</button>' : '<span class="check ghostcheck" aria-hidden="true"></span>') +
       '<div class="binfo"><div class="bk">' + esc(bl.kind) + '</div><div class="bt">' + esc(bl.title) + '</div><div class="bm">' + fmtMin(blockSecs(bl)) + ' · ' + bl.items.length + ' drills' + (bl.ch ? ' · challenge: ' + esc(CHALLENGES[bl.ch].label) : '') + '</div></div>' +
-      '<button type="button" class="start" data-start="' + bl.id + '">' + ICON.play + (isDone ? 'Again' : 'Start') + '</button>' +
+      '<button type="button" class="start" data-start="' + bl.id + '" data-ctx="' + ctx + '">' + ICON.play + (counting ? (isDone ? 'Again' : 'Start') : 'Try') + '</button>' +
       '</div><details><summary>Drills</summary><ul class="items">' + items + '</ul></details></article>';
-  });
+  }).join("") + '</div>';
+}
+function sessionHead(s) {
+  const ph = s.bonus ? "Bonus day · Game Speed" : s.phase.id === 4 ? "Finals" : "Phase " + s.phase.id + " · " + s.phase.name;
+  const chips = '<span class="chip">' + esc(ph) + '</span>' + (s.test ? '<span class="chip accent">Test day</span>' : '') +
+    (s.kind === "final" ? '<span class="chip accent">Graduation</span>' : '');
+  return '<div class="dayno"><b>DAY ' + s.n + '</b><span>' + (s.bonus ? 'bonus day' : 'of ' + PROGRAM_DAYS) + '</span>' + chips + '</div>' +
+    '<div class="daytitle"><h2>' + esc(s.title) + '</h2><span class="chip">' + fmtMin(blocksFor(s, "full").reduce((a, x) => a + blockSecs(x), 0)) + ' total</span></div>';
+}
+
+/* ---------------- Today ---------------- */
+function viewToday() {
+  const s = todaySession(), log = todayLog(), ts = trainState();
+  const counting = ts.ok;
+  const mode = log ? log.mode : state.modePref;
+  let html = '<div class="dayhead">' + sessionHead(s);
+  if (ts.reason === "weekend") {
+    html += '<div class="note">Weekend: rest, play another sport, or just play. Missed a session this week? You can do a make-up session (max ' + WEEK_MAX + ' a week). Make-ups count for your days and XP, not your streak.' +
+      '<div style="margin-top:8px"><button type="button" class="btn" data-act="makeup">Start a make-up session</button></div></div>';
+  } else if (ts.reason === "week") {
+    html += '<div class="note">You already trained ' + WEEK_MAX + ' times this week. Rest is part of the program. Day ' + s.n + ' is ready on Monday. You can still look through it below.</div>';
+  } else if (ts.makeup) {
+    html += '<div class="note">Make-up session. It counts for your days and XP.</div>';
+  }
+  if (daysDone() >= PROGRAM_DAYS && !(log && log.complete)) html += '<div class="note"><b>You finished the 67-day program.</b> Keep going with bonus days: they repeat the Game Speed phase, and your streak and XP keep counting.</div>';
   html += '</div>';
-  const chId = P.days[day].skill.ch, C = CHALLENGES[chId];
-  if (isToday) {
-    const curScore = log && log.score && log.score.id === chId ? log.score.value : "";
-    const pb = best(p, { type: "ch", id: chId }, tk);
-    html += '<section class="card" aria-labelledby="ch-h"><h3 id="ch-h">Today\'s challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + '</p><div class="scorerow">' +
-      stepperHtml("score-today", curScore, C.max) + ' <span class="unit">' + esc(C.unit) + '</span> <button type="button" class="save" data-savescore="' + chId + '">Save score</button></div>' +
+  const full = blocksFor(s, "full").reduce((a, x) => a + blockSecs(x), 0), lite = blocksFor(s, "lite").reduce((a, x) => a + blockSecs(x), 0);
+  html += '<div class="mode" role="group" aria-label="Session length">' +
+    '<button type="button" data-mode="full" aria-pressed="' + (mode === "full") + '"' + (counting ? '' : ' disabled') + '><b>Full session</b><small>' + fmtMin(full) + '</small></button>' +
+    '<button type="button" data-mode="lite" aria-pressed="' + (mode === "lite") + '"' + (counting ? '' : ' disabled') + '><b>Team practice day</b><small>' + fmtMin(lite) + ' · still counts</small></button></div>';
+  if (log && log.complete) {
+    html += '<div class="done-banner">' + ICON.check + '<div><b>Day ' + s.n + ' complete</b><span>Streak: ' + currentStreak(logs, tk()) + '. Sleep well tonight (' + GROUPS[myGroup()].sleep + ').</span></div></div>';
+  }
+  if (counting) html += xpCard(log, mode);
+  html += blocksHtml(s, mode, "today", log, counting);
+  const C = CHALLENGES[s.ch], target = targetFor(s.ch, myAge());
+  if (counting) {
+    const curScore = log && log.score && log.score.id === s.ch ? log.score.value : "";
+    const pb = best({ type: "ch", id: s.ch }, tk());
+    html += '<section class="card" aria-labelledby="ch-h"><h3 id="ch-h">Today\'s challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + ' Full points at <b>' + target + ' ' + esc(C.unit) + '</b> (target for age ' + myAge() + ').</p><div class="scorerow">' +
+      stepperHtml("score-today", curScore, C.max) + ' <span class="unit">' + esc(C.unit) + '</span> <button type="button" class="save" data-savescore="' + s.ch + '">Save score</button></div>' +
       '<div class="pbline">Personal best: <b>' + (pb === null ? '—' : pb + ' ' + esc(C.unit)) + '</b>' + (curScore !== "" ? ' · Today: <b>' + curScore + '</b>' : '') + '</div></section>';
-    if (P.days[day].athletic.test && mode === "full") html += testsCard(p, tk, log);
+    if (s.test && mode === "full") html += testsCard(log);
   } else {
-    html += '<section class="card"><h3>' + DAY_LONG[day] + '\'s challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + '</p></section>';
+    html += '<section class="card"><h3>Challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + ' Full points at ' + target + ' ' + esc(C.unit) + '.</p></section>';
   }
   return html;
+}
+function xpCard(log, mode) {
+  const p = (log && log.parts) || { blocks: 0, challenge: 0, pb: 0, streak: 0 };
+  const maxBlocks = requiredBlocks(mode).length * XP_RULES.block;
+  return '<section class="card xpcard" aria-label="Today\'s points"><div class="xp-top"><b>' + ((log && log.xp) || 0) + '</b><span>XP today · max ' + XP_RULES.dayMax + '</span></div>' +
+    '<div class="xp-parts"><span>Blocks <b>' + p.blocks + '</b>/' + maxBlocks + '</span><span>Challenge <b>' + p.challenge + '</b>/' + XP_RULES.challenge + '</span><span>Personal best <b>+' + p.pb + '</b></span><span>Streak <b>+' + p.streak + '</b></span></div></section>';
 }
 function stepperHtml(id, val, max) {
   return '<span class="stepper"><button type="button" data-step="-1" data-for="' + id + '" aria-label="Minus one">−</button><input id="' + id + '" type="number" inputmode="numeric" min="0" max="' + max + '" value="' + (val === "" || val === null || val === undefined ? "" : val) + '" placeholder="0" aria-label="Score"><button type="button" data-step="1" data-for="' + id + '" aria-label="Plus one">+</button></span>';
 }
-function testsCard(p, tk, log) {
+function testsCard(log) {
   const vals = (log && log.tests) || {};
-  const fields = TESTS[p].map((t) => {
-    const pb = best(p, { type: "test", id: t.id }, tk);
+  const fields = TESTS[myGroup()].map((t) => {
+    const pb = best({ type: "test", id: t.id }, tk());
     return '<div class="test"><label for="test-' + t.id + '">' + esc(t.label) + '</label>' + stepperHtml("test-" + t.id, typeof vals[t.id] === "number" ? vals[t.id] : "", t.max) + ' <span class="unit">' + esc(t.unit) + '</span><div class="pbline">' + esc(t.how) + ' Best: <b>' + (pb === null ? '—' : pb) + '</b></div></div>';
   }).join("");
-  return '<section class="card" aria-labelledby="tests-h"><h3 id="tests-h">Friday tests</h3><p>Test yourself every Friday. Beat last week\'s numbers.</p><div class="tests">' + fields + '</div><div style="margin-top:12px"><button type="button" class="save" data-savetests="1">Save tests</button></div></section>';
+  return '<section class="card" aria-labelledby="tests-h"><h3 id="tests-h">Test day</h3><p>Test yourself every fifth day. Beat your last numbers for a personal-best bonus.</p><div class="tests">' + fields + '</div><div style="margin-top:12px"><button type="button" class="save" data-savetests="1">Save tests</button></div></section>';
 }
-function viewWeek() {
-  const p = state.player, P = PROGRAM[p];
-  const rows = WEEKDAYS.map((d) => {
-    const D = P.days[d];
-    return '<div class="wp"><div class="d">' + DAY_SHORT[d].toUpperCase() + '<small>' + fmtMin(blocksFor(p, d, "full").reduce((a, x) => a + blockSecs(x), 0)) + '</small></div><dl>' +
-      '<dt>Warm-up</dt><dd>Injury-proof warm-up · 5 min</dd>' +
-      '<dt>Athletic</dt><dd>' + esc(D.athletic.title) + ' · ' + fmtMin(blockSecs({ items: D.athletic.items })) + '</dd>' +
-      '<dt>Handles</dt><dd>Warm-up + 5-min circuit · 7 min</dd>' +
-      '<dt>Basketball</dt><dd>' + esc(D.skill.title) + ' · 10 min · <b>' + esc(CHALLENGES[D.skill.ch].label) + '</b></dd>' +
-      '<dt>Strength</dt><dd>' + esc(D.strength.title) + ' · ' + fmtMin(blockSecs({ items: D.strength.items })) + '</dd></dl></div>';
-  }).join("");
-  return '<div class="weekplan"><div class="note">' + P.name + ' (' + P.group + '). Physical work each day: warm-up 5 + athletic 8 + strength 7 = 20 min. Basketball: handles 7 + skill 10. Saturday and Sunday are rest days.</div>' + rows +
-    '<div class="wp"><div class="d">SAT<small>Rest</small></div><dl><dt>Plan</dt><dd>Rest, family time, or another sport.</dd></dl></div>' +
-    '<div class="wp"><div class="d">SUN<small>Rest</small></div><dl><dt>Plan</dt><dd>Rest. Sleep ' + P.sleep + ' a night.</dd></dl></div></div>';
+
+/* ---------------- Program map ---------------- */
+function viewProgram() {
+  const g = myGroup(), n = isPlayer() ? todayN() : 0;
+  const doneDays = isPlayer() ? daysDone() : 0;
+  if (!state.mapDay) state.mapDay = isPlayer() ? Math.min(n, PROGRAM_DAYS) : 1;
+  const sel = state.mapDay;
+  let html = '<div class="phases">' + PHASES.map((ph) => {
+    const cur = isPlayer() && n >= ph.from && n <= ph.to;
+    return '<div class="phase p' + ph.id + (cur ? ' cur' : '') + '"><div class="ph-top"><b>' + esc(ph.name) + '</b><span>Days ' + ph.from + '–' + ph.to + '</span></div><p>' + esc(ph.goal) + '</p></div>';
+  }).join("") + '</div>';
+  html += '<h3 class="sec-h">67-day map · ' + esc(GROUPS[g].label) + '</h3><p class="small">Tap a day to see its plan. Every fifth day is a test day.</p><div class="map" role="group" aria-label="Program days">';
+  for (let d = 1; d <= PROGRAM_DAYS; d++) {
+    const ph = phaseOf(d), cls = ["cell", "p" + ph.id];
+    if (d <= doneDays) cls.push("done");
+    if (isPlayer() && d === n) cls.push("cur");
+    if (isTestDay(d)) cls.push("test");
+    html += '<button type="button" class="' + cls.join(" ") + '" data-mapday="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="Day ' + d + (d <= doneDays ? ', done' : '') + (isTestDay(d) ? ', test day' : '') + '">' + d + '</button>';
+  }
+  html += '</div>';
+  const s = sessionFor(g, sel);
+  html += '<section class="mapday" aria-live="polite">' + sessionHead(s) +
+    '<p class="small">' + (isPlayer() && sel === n ? 'This is your next session. Train it from the Today tab.' : 'Preview: timers run, but nothing is saved.') + '</p>' +
+    blocksHtml(s, "full", "map", null, false) +
+    '<section class="card"><h3>Challenge · ' + esc(CHALLENGES[s.ch].label) + '</h3><p>' + esc(CHALLENGES[s.ch].how) + '</p></section></section>';
+  html += '<section class="card"><h3>How a week works</h3><ul class="plain">' +
+    '<li>Sessions run in a 5-day cycle: speed, jumps, defense, first step, then test day. Each session also has handles (7 min) and a basketball block with a scored challenge (10 min).</li>' +
+    '<li>Physical work is about 20 minutes a day: warm-up 5, athletic 7–8, strength 7.</li>' +
+    '<li>Train Monday to Friday. Missed a day? Nothing is skipped: the next session is simply the next day number.</li>' +
+    '<li>Up to ' + WEEK_MAX + ' sessions a week. Weekends are for rest or a make-up session.</li></ul></section>';
+  return html;
 }
+
+/* ---------------- Leaderboard ---------------- */
+function loadBoard(force) {
+  const B = state.board, kind = B.kind, c = B.cache[kind];
+  if (B.loading) return;
+  if (c && !force && Date.now() - c.at < 120000) return;
+  B.loading = true; B.error = "";
+  store.fetchBoard(kind).then((list) => { B.cache[kind] = { list, at: Date.now() }; })
+    .catch((e) => { console.error(e); B.error = "Couldn't load the leaderboard. Check your connection."; })
+    .finally(() => { B.loading = false; if (state.tab === "board" && $("timer").hidden) render(); });
+}
+function viewBoard() {
+  const B = state.board, c = B.cache[B.kind], admin = state.user && state.user.admin;
+  if (!c) loadBoard(false);
+  const seg = (k, lbl) => '<button type="button" data-bkind="' + k + '" aria-pressed="' + (B.kind === k) + '">' + lbl + '</button>';
+  const flt = (k, lbl) => '<button type="button" class="fchip" data-bfilter="' + k + '" aria-pressed="' + (B.filter === k) + '">' + lbl + '</button>';
+  let html = '<div class="boardbar"><div class="seg" role="group" aria-label="Period">' + seg("week", "This week") + seg("all", "All time") + '</div>' +
+    '<div class="filters" role="group" aria-label="Age group">' + flt("all", "All ages") + flt("10-11", "10–11") + flt("12-15", "12–15") + '</div></div>';
+  if (!c) return html + '<div class="card"><p>' + (B.error ? esc(B.error) : 'Loading the leaderboard…') + '</p>' + (B.error ? '<button type="button" class="btn" data-act="board-refresh">Try again</button>' : '') + '</div>' + fairCard();
+  const t = tk(), me = myUid();
+  let rows = c.list.filter((p) => admin || !p.hidden || p.uid === me).map((p) => Object.assign({}, p, { score: B.kind === "week" ? liveWeekXp(p, t) : p.xp || 0, live: liveStreak(p, t) }));
+  if (B.filter !== "all") rows = rows.filter((p) => p.group === B.filter);
+  if (B.kind === "week") rows = rows.filter((p) => p.score > 0 || p.uid === me);
+  rows.sort((a, b) => b.score - a.score || b.live - a.live || (b.days || 0) - (a.days || 0) || String(a.nickname).localeCompare(String(b.nickname)));
+  if (!rows.length) html += '<div class="card"><p>' + (B.kind === "week" ? 'Nobody has trained yet this week. Be the first.' : 'No players yet.') + '</p></div>';
+  else {
+    html += '<ol class="board">' + rows.map((p, i) => {
+      const rank = i + 1, mine = p.uid === me;
+      return '<li class="brow' + (mine ? ' me' : '') + (p.hidden ? ' hid' : '') + '"><span class="rank r' + Math.min(rank, 4) + '">' + rank + '</span>' + avatarHtml(p.avatar) +
+        '<span class="bname"><b>' + esc(p.nickname || "Player") + '</b>' + (mine ? '<em>You</em>' : '') + ((p.days || 0) >= PROGRAM_DAYS ? '<span class="grad" title="Graduated">' + ICON.cap + '</span>' : '') +
+        '<small>' + esc(GROUPS[p.group] ? GROUPS[p.group].short : "") + ' · ' + Math.min(p.days || 0, PROGRAM_DAYS) + '/' + PROGRAM_DAYS + ' days' + (p.hidden ? ' · hidden' : '') + '</small>' +
+        (admin && !mine && !(state.user && state.user.demo) ? '<button type="button" class="linkbtn" data-hide="' + esc(p.uid) + ':' + (p.hidden ? '0' : '1') + '">' + (p.hidden ? 'Show' : 'Hide') + '</button>' : '') + '</span>' +
+        '<span class="bstreak" title="Day streak">' + ICON.flameSm + p.live + '</span><span class="bxp"><b>' + fmtXp(p.score) + '</b><small>XP</small></span></li>';
+    }).join("") + '</ol>';
+  }
+  const ago = Math.round((Date.now() - c.at) / 60000);
+  html += '<div class="boardfoot"><span class="small">' + (B.loading ? 'Updating…' : 'Updated ' + (ago < 1 ? 'just now' : ago + ' min ago')) + '</span><button type="button" class="btn ghost" data-act="board-refresh">' + ICON.refresh + 'Refresh</button></div>';
+  return html + fairCard();
+}
+function fairCard() {
+  return '<section class="card"><h3>Same rules for everyone</h3><ul class="plain">' +
+    '<li>Each finished block: <b>10 XP</b> (5 blocks = 50).</li>' +
+    '<li>Challenge: up to <b>30 XP</b>, measured against the target for <b>your age</b>. Hit your target and you get the full 30, whether you are 10 or 15.</li>' +
+    '<li>New personal best (challenge or test): <b>+10 XP</b>. Everyone can beat their own best.</li>' +
+    '<li>Streak bonus: <b>+1 XP</b> per streak day, up to +10.</li>' +
+    '<li>Max <b>100 XP a day</b> and ' + WEEK_MAX + ' sessions a week, so extra sessions can\'t buy points. <b>This week</b> resets every Monday, so new players can win it too.</li></ul></section>';
+}
+
+/* ---------------- Progress ---------------- */
 function spark(h) {
   if (h.length < 2) return '<span class="unit">' + (h.length ? '1 entry' : 'No entries') + '</span>';
   const pts = h.slice(-10), vs = pts.map((x) => x.v), mn = Math.min(...vs), mx = Math.max(...vs), rng = mx - mn || 1, step = 96 / (pts.length - 1);
@@ -251,102 +370,196 @@ function spark(h) {
   return '<svg class="spark" viewBox="-2 0 100 28" role="img" aria-label="Last ' + pts.length + ' results"><polyline points="' + coords.map((c) => c.join(",")).join(" ") + '" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="3" style="fill:var(--accent)"/></svg>';
 }
 function viewProgress() {
-  const p = state.player, cur = currentStreak(p), lon = longestStreak(p);
-  let html = '<div class="statrow"><div class="stat"><b>' + cur + '</b><span>Current streak</span></div><div class="stat"><b>' + lon + '</b><span>Best streak</span></div><div class="stat"><b>' + totalDays(p) + '</b><span>Days trained</span></div></div>';
-  html += '<h3 class="sec-h">Badges</h3><div class="badges">' + BADGES.map((b) => {
-    const got = lon >= b.n;
-    return '<div class="badge' + (got ? ' earned' : '') + '">' + ICON.badge + '<b>' + b.n + '</b><span>' + b.label + '</span><span style="font-size:12px">' + (got ? 'Unlocked' : 'Locked') + '</span></div>';
+  const P = pub(), cur = currentStreak(logs, tk()), lon = longestStreak(logs), done = daysDone();
+  let html = '<div class="statrow four"><div class="stat"><b>' + fmtXp(P.xp) + '</b><span>Total XP</span></div><div class="stat"><b>' + done + '</b><span>Days done</span></div><div class="stat"><b>' + cur + '</b><span>Streak</span></div><div class="stat"><b>' + lon + '</b><span>Best streak</span></div></div>';
+  html += '<h3 class="sec-h">Program milestones</h3><div class="badges">' + MILESTONES.map((m) => {
+    const got = done >= m.n;
+    return '<div class="badge' + (got ? ' earned' : '') + '">' + (m.n === PROGRAM_DAYS ? ICON.cap : ICON.badge) + '<b>' + m.n + '</b><span>' + esc(m.label) + '</span><span class="small">' + (got ? 'Unlocked' : 'Day ' + m.n) + '</span></div>';
   }).join("") + '</div>';
-  const row = (label, unit, h) => {
+  html += '<h3 class="sec-h">Streak badges</h3><div class="badges">' + BADGES.map((b) => {
+    const got = lon >= b.n;
+    return '<div class="badge' + (got ? ' earned' : '') + '">' + ICON.badge + '<b>' + b.n + '</b><span>' + esc(b.label) + '</span><span class="small">' + (got ? 'Unlocked' : 'Locked') + '</span></div>';
+  }).join("") + '</div>';
+  const row = (label, unit, h, target) => {
     const pb = h.length ? Math.max(...h.map((x) => x.v)) : null, last = h.length ? h[h.length - 1].v : null;
-    return '<tr><td>' + esc(label) + '</td><td class="num">' + (pb === null ? '—' : pb) + '<small>' + esc(unit) + '</small></td><td class="num">' + (last === null ? '—' : last) + '</td><td>' + spark(h) + '</td></tr>';
+    return '<tr><td>' + esc(label) + '</td><td class="num">' + (pb === null ? '—' : pb) + '<small>' + esc(unit) + '</small></td><td class="num opt">' + (last === null ? '—' : last) + '</td>' + (target !== undefined ? '<td class="num">' + target + '</td>' : '') + '<td>' + spark(h) + '</td></tr>';
   };
-  const head = (w) => '<thead><tr><th>' + w + '</th><th>Best</th><th>Last</th><th>Trend</th></tr></thead>';
-  html += '<h3 class="sec-h">Basketball challenges</h3><div class="tablewrap"><table class="pbtable">' + head("Challenge") + '<tbody>' + challengesFor(p).map((id) => row(CHALLENGES[id].label, CHALLENGES[id].unit, history(p, { type: "ch", id }))).join("") + '</tbody></table></div>';
-  html += '<h3 class="sec-h">Friday tests</h3><div class="tablewrap"><table class="pbtable">' + head("Test") + '<tbody>' + TESTS[p].map((t) => row(t.label, t.unit, history(p, { type: "test", id: t.id }))).join("") + '</tbody></table></div>';
+  html += '<h3 class="sec-h">Basketball challenges</h3><div class="tablewrap"><table class="pbtable"><thead><tr><th>Challenge</th><th>Best</th><th class="opt">Last</th><th>Target</th><th>Trend</th></tr></thead><tbody>' +
+    challengesForGroup(myGroup()).map((id) => row(CHALLENGES[id].label, CHALLENGES[id].unit, history({ type: "ch", id }), targetFor(id, myAge()))).join("") + '</tbody></table></div>';
+  html += '<h3 class="sec-h">Tests</h3><div class="tablewrap"><table class="pbtable"><thead><tr><th>Test</th><th>Best</th><th class="opt">Last</th><th>Trend</th></tr></thead><tbody>' +
+    TESTS[myGroup()].map((t) => row(t.label, t.unit, history({ type: "test", id: t.id }))).join("") + '</tbody></table></div>';
   return html;
 }
-function familyCard() {
-  if (!state.user || !state.user.admin || state.user.demo) return "";
-  const list = (state.members || []).slice().sort((a, b) => (a.approved === b.approved ? 0 : a.approved ? 1 : -1));
-  const who = (m) => esc(m.name || m.email || "Unknown") + (m.email ? '<br><span class="small">' + esc(m.email) + '</span>' : '');
-  const role = (m) => m.player ? PROGRAM[m.player].name : "Parent / coach";
-  const rows = list.map((m) => m.approved
-    ? '<tr><td>' + who(m) + '</td><td>' + esc(role(m)) + '</td><td><button type="button" class="btn ghost" data-remove="' + esc(m.uid) + '">Remove</button></td></tr>'
-    : '<tr><td>' + who(m) + '</td><td><b>Waiting</b></td><td><div class="row" style="display:flex;gap:6px;flex-wrap:wrap">' +
-        '<button type="button" class="btn" data-approve="' + esc(m.uid) + ':harvell">Harvell</button>' +
-        '<button type="button" class="btn" data-approve="' + esc(m.uid) + ':jasper">Jasper</button>' +
-        '<button type="button" class="btn ghost" data-approve="' + esc(m.uid) + ':">Parent</button>' +
-        '<button type="button" class="btn ghost" data-remove="' + esc(m.uid) + '">Decline</button></div></td></tr>').join("");
-  return '<section class="card" aria-labelledby="fam-h"><h3 id="fam-h">Family access</h3>' +
-    '<p>When Harvell or Jasper signs in with Google on their phone, a request shows up here. Approve it as the right player and the app opens on their plan.</p>' +
-    (rows ? '<div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead><tr><th>Account</th><th>Access</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-          : '<p class="small">No requests yet. Ask them to open the app and sign in with Google.</p>') + '</section>';
+
+/* ---------------- Guide ---------------- */
+function targetsTable() {
+  const g = myGroup(), ages = AGES.filter((a) => groupForAge(a) === g);
+  const head = '<tr><th>Challenge</th>' + ages.map((a) => '<th' + (isPlayer() && a === myAge() ? ' class="hl"' : '') + '>Age ' + a + '</th>').join("") + '</tr>';
+  const rows = challengesForGroup(g).map((id) => '<tr><td>' + esc(CHALLENGES[id].label) + ' <span class="small">(' + esc(CHALLENGES[id].unit) + ')</span></td>' + ages.map((a) => '<td' + (isPlayer() && a === myAge() ? ' class="hl"' : '') + '>' + TARGETS[id][a] + '</td>').join("") + '</tr>').join("");
+  return '<div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
 }
 function viewGuide() {
-  return '<div class="guide">' + familyCard() +
-  '<section class="card"><h3>How the streak works</h3><ul>' +
-    '<li>Finish every block of today\'s session (tick it, or run its timer to the end). The day turns orange and the streak grows.</li>' +
-    '<li>Only Monday to Friday count. Weekends never break a streak.</li>' +
-    '<li>Team practice or game day? Switch to <b>Team practice day</b>: warm-up, handles and the challenge only. It still counts.</li>' +
-    '<li>Miss a weekday and the streak starts again from zero. Your best streak is kept.</li>' +
-    '<li>Tap the ▶ next to any drill to see how it\'s done. During the timer, the animation shows the current drill; <b>Real demo</b> opens a video.</li>' +
+  return '<div class="guide">' +
+  '<section class="card"><h3>How it works</h3><ul>' +
+    '<li><b>67 days.</b> Day 1 is your first finished session, Day 67 your graduation. Missed a day? Nothing is skipped: you just do the next day number.</li>' +
+    '<li><b>Your streak</b> counts weekdays in a row with a finished session. Weekends never break it. Miss a weekday and it starts again; your best streak is kept.</li>' +
+    '<li>Finish every block of today\'s session (tick it, or run its timer to the end). Team practice or a game? Switch to <b>Team practice day</b>: warm-up, handles and the challenge. It still counts.</li>' +
+    '<li>Up to ' + WEEK_MAX + ' sessions a week. On weekends you can do a make-up session if you missed one.</li>' +
+    '<li>Tap ▶ next to any drill to see how it\'s done. During a timer, the animation shows the current drill and <b>Real demo</b> opens a video.</li>' +
   '</ul></section>' +
-  '<section class="card"><h3>Harvell (U10) vs Jasper (U14)</h3><div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead><tr><th></th><th>Harvell · U10</th><th>Jasper · U14</th></tr></thead><tbody>' +
-    '<tr><td>Focus</td><td>Skill window: coordination, balance, landing, lots of touches</td><td>Speed window: first step, deceleration, bodyweight strength</td></tr>' +
-    '<tr><td>Jumps</td><td>About 60–75 easy foot contacts, Tue and Fri</td><td>About 80–85 foot contacts, Tue and Fri</td></tr>' +
-    '<tr><td>Strength</td><td>Bodyweight, short holds, 2 sets</td><td>Tempo and single-leg work, 2 sets of 6–15 reps</td></tr>' +
-    '<tr><td>Shooting</td><td>Close range, form, both hands</td><td>Catch-and-shoot, corners, free throws when tired</td></tr>' +
+  '<section class="card"><h3>Fair points</h3><p>Everyone earns XP by the same rules (max 100 a day). Challenge points compare you with the target for your age, so younger players can top the board too.</p>' +
+    '<ul><li>Finished block: 10 XP each.</li><li>Challenge: up to 30 XP. Your score ÷ your age target, capped at 100%.</li><li>New personal best: +10 XP.</li><li>Streak bonus: +1 per day, up to +10.</li></ul>' +
+    '<p style="margin-top:10px"><b>Targets for ' + esc(GROUPS[myGroup()].label) + '</b> (score for full points)</p>' + targetsTable() + '</section>' +
+  '<section class="card"><h3>What the 67 days build</h3><div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead><tr><th></th><th>Ages 10–11</th><th>Ages 12–15</th></tr></thead><tbody>' +
+    '<tr><td>Focus</td><td>Skill window: coordination, balance, landing, lots of touches</td><td>Speed window: first step, stopping, single-leg strength</td></tr>' +
+    '<tr><td>Days 1–20</td><td>Form shooting, layups both hands, handles standing still</td><td>Catch and shoot, finishing through contact, handles standing still</td></tr>' +
+    '<tr><td>Days 21–45</td><td>5-spot shooting, reverse layups, jab and go, in-and-out and between the legs</td><td>Relocating, floaters, reverse layups, pull-ups off one dribble</td></tr>' +
+    '<tr><td>Days 46–65</td><td>Crossover pull-ups, crossover into layups, euro steps, handles on the move</td><td>Step-backs, crossover pull-ups, shooting tired, handles on the move</td></tr>' +
+    '<tr><td>Jumps</td><td>Stick every landing first, then two in a row</td><td>Bounds and double jumps, then low depth drops</td></tr>' +
     '<tr><td>Sleep</td><td>9–12 hours</td><td>8–10 hours</td></tr>' +
-  '</tbody></table></div></section>' +
+  '</tbody></table></div><p class="small" style="margin-top:8px">67 sessions take you from basics to a solid intermediate level. Game-level moves also need real games: keep playing with your team.</p></section>' +
   '<section class="card"><h3>Safety rules</h3><ul>' +
     '<li>Sharp pain means stop and tell a parent. Sore knees or heels during a growth spurt: skip the jumps that day.</li>' +
     '<li>Every landing is quiet: soft knees, knees over toes, never caving in.</li>' +
     '<li>Technique before speed. A sloppy rep does not count.</li>' +
-    '<li>Jasper: build muscle with these bodyweight progressions, food and sleep. Add weights later, only with a qualified coach.</li>' +
+    '<li>Ages 12–15: build strength with these bodyweight progressions, food and sleep. Add weights later, only with a qualified coach.</li>' +
+    '<li>Play fair: only tick what you really did. Points only mean something if they\'re real.</li>' +
   '</ul></section>' +
   '<section class="card"><h3>Standards this plan follows</h3><ul>' +
     '<li><a href="https://youthguidelines.nba.com" target="_blank" rel="noopener">NBA & USA Basketball Youth Guidelines</a>: ages 9–11 up to 5 h of organized basketball a week with 2 rest days; ages 12–14 up to 10 h with 1 rest day.</li>' +
     '<li><a href="https://assets.website-files.com/5d24fc966ad064837947a33b/5ee2c5bbaaa13133cebedfbb_cb_adm_ltad.pdf" target="_blank" rel="noopener">Canada Basketball Athlete Development Model</a>: 9–12 is the skill window; 13–16 is the second speed window.</li>' +
-    '<li><a href="https://www.nsca.com/globalassets/about/position-statements/position_stand_youth_resistance_training---2009.pdf" target="_blank" rel="noopener">NSCA youth resistance training position</a>: 1–3 sets of 6–15 reps, 2–3 days a week on non-consecutive days, technique first.</li>' +
+    '<li><a href="https://www.nsca.com/globalassets/about/position-statements/position_stand_youth_resistance_training---2009.pdf" target="_blank" rel="noopener">NSCA youth resistance training position</a>: 1–3 sets of 6–15 reps, 2–3 days a week, technique first.</li>' +
     '<li><a href="https://www.ucalgary.ca/shred-injuries/all-sports/basketball" target="_blank" rel="noopener">SHRed Injuries Basketball warm-up</a>: a 10-minute neuromuscular warm-up that cut ankle and knee injuries by 36% in youth players.</li>' +
     '<li>Handles circuit: <a href="https://www.youtube.com/watch?v=moPEMNHmwc4" target="_blank" rel="noopener">Coach Rock, Revenge Basketball</a>.</li>' +
+  '</ul></section>' +
+  '<section class="card"><h3>Privacy</h3><ul>' +
+    '<li>The leaderboard shows your nickname, avatar, age group, days, streak and XP. It never shows your email, photo or exact age.</li>' +
+    '<li>Use a nickname, not your full name. Delete your data any time from your player card (top right).</li>' +
   '</ul></section></div>';
 }
 
-/* ---------------- Page events ---------------- */
-document.querySelector(".players").addEventListener("click", (e) => {
-  const b = e.target.closest(".player-btn"); if (!b) return;
-  state.player = b.dataset.p; state.viewDay = null; lsSet("sc.player", state.player); render();
+/* ---------------- profile form (onboarding + edit) ---------------- */
+function profileForm(v, create) {
+  const ages = AGES.map((a) => '<button type="button" class="agechip" data-age="' + a + '" aria-pressed="' + (v.age === a) + '">' + a + '</button>').join("");
+  const avs = AVATARS.map((a) => '<button type="button" class="avpick" data-av="' + a.id + '" aria-pressed="' + (v.avatar === a.id) + '" aria-label="' + a.id + '">' + avatarHtml(a.id) + '</button>').join("");
+  return '<div class="pform">' +
+    '<label class="flabel" for="pf-nick">Nickname</label><input id="pf-nick" class="finput" maxlength="16" autocomplete="off" value="' + esc(v.nickname || "") + '" placeholder="e.g. Rocket">' +
+    '<p class="fhint">Shown on the leaderboard. Use a nickname, not your full name.</p>' +
+    '<span class="flabel">Age</span><div class="ages" role="group" aria-label="Age">' + ages + '</div>' +
+    '<p class="fhint">Your program and your challenge targets are set by age.' + (v.age ? ' Program: <b>' + esc(GROUPS[groupForAge(v.age)].label) + '</b>.' : '') + '</p>' +
+    '<span class="flabel">Avatar</span><div class="avgrid" role="group" aria-label="Avatar">' + avs + '</div>' +
+    (create ? '<label class="consent"><input type="checkbox" id="pf-consent"' + (v.consent ? ' checked' : '') + '> <span>A parent or guardian knows I\'m using Streak Court and says it\'s OK.</span></label>' : '') +
+    '<p class="err" id="pf-err" role="alert"></p>' +
+    '<button type="button" class="btn big" id="pf-save">' + (create ? 'Start Day 1' : 'Save changes') + '</button></div>';
+}
+const form = { nickname: "", age: null, avatar: null, consent: false };
+function readForm(root) {
+  const nick = root.querySelector("#pf-nick"); if (nick) form.nickname = nick.value;
+  const c = root.querySelector("#pf-consent"); if (c) form.consent = c.checked;
+}
+function formEvents(root, create) {
+  root.addEventListener("click", (e) => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.age) { readForm(root); form.age = +t.dataset.age; paintForm(root, create); return; }
+    if (t.dataset.av) { readForm(root); form.avatar = t.dataset.av; paintForm(root, create); return; }
+    if (t.id === "pf-save") { readForm(root); submitForm(root, create, t); }
+  });
+}
+function paintForm(root, create) {
+  const host = root.querySelector(".pform-host"); if (!host) return;
+  host.innerHTML = profileForm(form, create);
+}
+async function submitForm(root, create, btn) {
+  const err = root.querySelector("#pf-err");
+  const nick = cleanNickname(form.nickname), prob = nicknameProblem(nick);
+  if (prob) { err.textContent = prob; return; }
+  if (!form.age) { err.textContent = "Pick your age."; return; }
+  if (!form.avatar) { err.textContent = "Pick an avatar."; return; }
+  if (create && !form.consent) { err.textContent = "Ask a parent or guardian first, then tick the box."; return; }
+  btn.disabled = true; err.textContent = "";
+  const data = { nickname: nick, age: form.age, avatar: form.avatar, group: groupForAge(form.age) };
+  try {
+    if (create) await store.createProfile(data); else { await store.updateProfile(data); closeModal(); toast("Saved."); }
+  } catch (e) { console.error(e); err.textContent = "Couldn't save. Check your connection and try again."; btn.disabled = false; }
+}
+
+/* ---------------- onboarding + profile modal ---------------- */
+function showOnboard() {
+  $("gate").hidden = true; $("app").hidden = true; $("onboard").hidden = false;
+  $("ob-email").textContent = state.user && state.user.email ? "Signed in as " + state.user.email : "";
+  paintForm($("onboard"), true);
+}
+formEvents($("onboard"), true);
+$("ob-viewer").addEventListener("click", () => store.setViewer(true));
+$("ob-signout").addEventListener("click", () => store.signOutUser());
+
+function openProfile() {
+  const P = pub();
+  state.confirmDelete = false;
+  if (!P) {
+    openModal("Coach view", '<p class="cue">You\'re browsing without a player card' + (state.user && state.user.email ? ' (' + esc(state.user.email) + ')' : '') + '.</p><div class="row"><button type="button" class="btn" data-act="make-card">Make a player card</button>' + (state.user && !state.user.demo ? '<button type="button" class="btn ghost" data-act="signout">Sign out</button>' : '') + '</div>');
+    return;
+  }
+  Object.assign(form, { nickname: P.nickname, age: myAge(), avatar: P.avatar, consent: true });
+  openModal("Your player card", '<div class="pform-host">' + profileForm(form, false) + '</div>' +
+    '<p class="small">Changing your age moves you to that age group\'s program and targets. Your days, streak and XP stay.</p>' +
+    '<div class="danger"><h4>Account</h4><div class="row">' + (state.user && !state.user.demo ? '<button type="button" class="btn ghost" data-act="signout">Sign out</button>' : '') +
+    '<button type="button" class="btn ghost warn" data-act="delete">Delete my data</button></div><p class="small" id="del-msg"></p></div>');
+}
+$("m-body").addEventListener("click", (e) => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.age || t.dataset.av || t.id === "pf-save") {
+    const host = $("m-body");
+    readForm(host);
+    if (t.dataset.age) { form.age = +t.dataset.age; host.querySelector(".pform-host").innerHTML = profileForm(form, false); }
+    else if (t.dataset.av) { form.avatar = t.dataset.av; host.querySelector(".pform-host").innerHTML = profileForm(form, false); }
+    else submitForm(host, false, t);
+    return;
+  }
+  if (t.dataset.act === "signout") { closeModal(); store.signOutUser(); return; }
+  if (t.dataset.act === "make-card") { closeModal(); state.wantCard = true; store.setViewer(false); route(); return; }
+  if (t.dataset.act === "delete") {
+    if (!state.confirmDelete) { state.confirmDelete = true; t.textContent = "Tap again to delete everything"; $("del-msg").textContent = "This removes your player card, every session and your place on the leaderboard. It can't be undone."; return; }
+    t.disabled = true; $("del-msg").textContent = "Deleting…";
+    store.deleteMyData().then(() => { closeModal(); logs = {}; toast("Your data is deleted."); }).catch((err) => { console.error(err); t.disabled = false; $("del-msg").textContent = "Couldn't delete. Check your connection and try again."; });
+  }
 });
-document.querySelector(".tabs").addEventListener("click", (e) => {
+
+/* ---------------- page events ---------------- */
+$("tabs").addEventListener("click", (e) => {
   const b = e.target.closest(".tab"); if (!b) return;
   state.tab = b.dataset.tab; render();
 });
 $("soundBtn").addEventListener("click", () => { state.sound = !state.sound; lsSet("sc.sound", state.sound); render(); });
+$("meBtn").addEventListener("click", openProfile);
+$("viewerbar").addEventListener("click", (e) => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.vgroup) { state.viewGroup = t.dataset.vgroup; lsSet("sc.viewGroup", state.viewGroup); render(); }
+  if (t.dataset.act === "make-card") { state.wantCard = true; store.setViewer(false); route(); }
+});
 $("panel").addEventListener("click", (e) => {
   const t = e.target.closest("button"); if (!t) return;
-  const p = state.player, tk = keyOf(today());
-  if (t.dataset.day) { state.viewDay = t.dataset.day; render(); return; }
+  if (t.dataset.mapday) { state.mapDay = +t.dataset.mapday; render(); const m = document.querySelector(".mapday"); if (m) m.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if (t.dataset.mode) {
     state.modePref = t.dataset.mode;
-    if (getLog(p, tk)) updateLog(p, tk, (l) => { l.mode = t.dataset.mode; }); else render();
+    if (todayLog()) updateToday((l) => { l.mode = t.dataset.mode; }); else render();
     return;
   }
-  if (t.dataset.toggle) { const id = t.dataset.toggle; updateLog(p, tk, (l) => { l.blocks[id] = !l.blocks[id]; }); return; }
-  if (t.dataset.start) { openTimer(t.dataset.start); return; }
-  if (t.dataset.preview) { const [bid, idx] = t.dataset.preview.split(":"); openPreview(bid, +idx); return; }
+  if (t.dataset.toggle) { const id = t.dataset.toggle; updateToday((l) => { l.blocks[id] = !l.blocks[id]; }); return; }
+  if (t.dataset.start) { openTimer(t.dataset.start, t.dataset.ctx); return; }
+  if (t.dataset.preview) { const [ctx, bid, idx] = t.dataset.preview.split(":"); openPreview(ctx, bid, +idx); return; }
   if (t.dataset.step) { stepInput(t); return; }
   if (t.dataset.savescore) { saveScore(t.dataset.savescore, $("score-today"), false); return; }
   if (t.dataset.savetests) { saveTests($("panel"), "test-"); return; }
-  if (t.dataset.approve) {
-    const [uid, player] = t.dataset.approve.split(":");
-    store.approveMember(uid, player || null).then(() => toast("Approved.")).catch(() => toast("Couldn't approve. Check your connection and try again."));
+  if (t.dataset.bkind) { state.board.kind = t.dataset.bkind; render(); return; }
+  if (t.dataset.bfilter) { state.board.filter = t.dataset.bfilter; render(); return; }
+  if (t.dataset.hide) {
+    const [uid, h] = t.dataset.hide.split(":");
+    store.setHidden(uid, h === "1").then(() => { toast(h === "1" ? "Hidden from the leaderboard." : "Shown on the leaderboard."); loadBoard(true); }).catch(() => toast("Couldn't change that. Try again."));
     return;
   }
-  if (t.dataset.remove) {
-    store.removeMember(t.dataset.remove).then(() => toast("Access removed.")).catch(() => toast("Couldn't remove. Check your connection and try again."));
-  }
+  if (t.dataset.act === "board-refresh") { loadBoard(true); render(); return; }
+  if (t.dataset.act === "makeup") { state.makeup = true; render(); }
 });
 function stepInput(btn) {
   const inp = $(btn.dataset.for); if (!inp) return;
@@ -355,22 +568,21 @@ function stepInput(btn) {
 }
 function readNum(inp, max) { if (!inp) return null; const v = parseInt(inp.value, 10); return isNaN(v) ? null : Math.max(0, Math.min(max, v)); }
 function saveScore(chId, inp, fromTimer) {
-  const p = state.player, tk = keyOf(today()), C = CHALLENGES[chId];
-  const v = readNum(inp, C.max);
+  const C = CHALLENGES[chId], v = readNum(inp, C.max);
   if (v === null) { toast("Enter a score first."); return null; }
-  const prevBest = best(p, { type: "ch", id: chId }, tk);
-  const blockId = currentMode() === "lite" ? "challenge" : "skill";
-  updateLog(p, tk, (l) => { l.score = { id: chId, value: v }; if (fromTimer) l.blocks[blockId] = true; });
-  const isPb = prevBest === null ? v > 0 : v > prevBest;
-  toast(isPb ? "New personal best: " + v + " " + C.unit + "!" : "Saved: " + v + " " + C.unit + ".");
+  const prevBest = best({ type: "ch", id: chId }, tk());
+  const blockId = (todayLog() ? todayLog().mode : state.modePref) === "lite" ? "challenge" : "skill";
+  updateToday((l) => { l.score = { id: chId, value: v }; if (fromTimer) l.blocks[blockId] = true; });
+  const isPb = prevBest !== null && v > prevBest;
+  toast(isPb ? "New personal best: " + v + " " + C.unit + "! +10 XP" : prevBest === null ? "Saved: " + v + " " + C.unit + ". That's your first score to beat." : "Saved: " + v + " " + C.unit + ".");
   return isPb;
 }
 function saveTests(root, prefix) {
-  const p = state.player, tk = keyOf(today()), got = {};
-  TESTS[p].forEach((t) => { const v = readNum(root.querySelector("#" + prefix + t.id), t.max); if (v !== null) got[t.id] = v; });
+  const got = {};
+  TESTS[myGroup()].forEach((t) => { const v = readNum(root.querySelector("#" + prefix + t.id), t.max); if (v !== null) got[t.id] = v; });
   if (!Object.keys(got).length) { toast("Enter at least one test result."); return false; }
-  const pbs = TESTS[p].filter((t) => got[t.id] !== undefined).filter((t) => { const b0 = best(p, { type: "test", id: t.id }, tk); return b0 === null ? got[t.id] > 0 : got[t.id] > b0; }).map((t) => t.label);
-  updateLog(p, tk, (l) => { l.tests = Object.assign({}, l.tests || {}, got); });
+  const pbs = TESTS[myGroup()].filter((t) => got[t.id] !== undefined).filter((t) => { const b0 = best({ type: "test", id: t.id }, tk()); return b0 !== null && got[t.id] > b0; }).map((t) => t.label);
+  updateToday((l) => { l.tests = Object.assign({}, l.tests || {}, got); });
   toast(pbs.length ? "New best: " + pbs.join(", ") + "!" : "Tests saved.");
   return true;
 }
@@ -381,9 +593,18 @@ function toast(msg) {
   el.textContent = msg; el.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
 }
-function celebrateDay(p) { setTimeout(() => toast(PROGRAM[p].name + ": day complete! Streak " + currentStreak(p) + "."), 300); chime([660, 880, 1320]); }
+function celebrateDay(l) {
+  const done = daysDone();
+  if (done === PROGRAM_DAYS) {
+    setTimeout(() => openModal("Graduation", '<div class="gradcard">' + ICON.cap + '<h2>DAY 67 DONE</h2><p>You finished the whole program: ' + PROGRAM_DAYS + ' sessions. Keep your streak going with bonus days.</p></div>'), 400);
+    chime([660, 880, 1100, 1320, 1760]);
+    return;
+  }
+  setTimeout(() => toast("Day " + l.day + " complete! Streak " + currentStreak(logs, tk()) + " · +" + l.xp + " XP"), 300);
+  chime([660, 880, 1320]);
+}
 
-/* ---------------- Audio & wake lock ---------------- */
+/* ---------------- audio & wake lock ---------------- */
 let AC = null;
 function ensureAudio() { try { if (!AC) { const C = window.AudioContext || window.webkitAudioContext; if (C) AC = new C(); } if (AC && AC.state === "suspended") AC.resume(); } catch (e) { /* ignore */ } }
 function beep(freq, dur, vol) {
@@ -404,18 +625,19 @@ function keepAwake(on) {
   } catch (e) { /* ignore */ }
 }
 
-/* ---------------- Timer ---------------- */
-const T = { block: null, segs: [], i: 0, remain: 0, endAt: 0, running: false, iv: 0, lastBeep: -1, evts: [], counts: true };
+/* ---------------- timer ---------------- */
+const T = { block: null, segs: [], i: 0, remain: 0, endAt: 0, running: false, iv: 0, lastBeep: -1, evts: [], counts: true, ctx: "today" };
 const stagePlayer = new Player($("t-canvas"));
+function ctxSession(ctx) { return ctx === "map" ? sessionFor(myGroup(), state.mapDay || 1) : todaySession(); }
+function ctxMode(ctx) { if (ctx === "map") return "full"; const l = todayLog(); return l ? l.mode : state.modePref; }
 
-function openTimer(blockId) {
-  const p = state.player, td = currentDayKey(), day = state.viewDay || td || "mon";
-  const mode = day === td ? currentMode() : "full";
-  const bl = blocksFor(p, day, mode).find((b) => b.id === blockId);
+function openTimer(blockId, ctx) {
+  ctx = ctx || "today";
+  const bl = blocksFor(ctxSession(ctx), ctxMode(ctx)).find((b) => b.id === blockId);
   if (!bl) return;
   ensureAudio();
-  T.block = bl; T.counts = day === td; T.segs = expand(bl.items); T.i = 0;
-  document.documentElement.style.setProperty("--tc", state.player === "jasper" ? "#78A2F2" : "#F0783F");
+  T.block = bl; T.ctx = ctx; T.counts = ctx === "today" && trainState().ok; T.segs = expand(bl.items); T.i = 0;
+  document.documentElement.style.setProperty("--tc", myGroup() === "12-15" ? "#78A2F2" : "#F0783F");
   $("t-block").textContent = bl.title;
   $("t-run").hidden = false; $("t-ctrl").hidden = false; $("t-next").hidden = false; $("t-finish").hidden = true; $("t-stage").hidden = false;
   $("timer").hidden = false;
@@ -439,7 +661,6 @@ function makeEvents(seg) {
   return ev;
 }
 function showStage(seg) {
-  // during rest, show what's next
   let target = seg, tag = "How to";
   if (seg.kind === "rest") {
     const n = T.segs.slice(T.i + 1).find((s) => s.kind !== "rest");
@@ -504,21 +725,21 @@ function finishBlock() {
   $("t-prog").style.width = "100%";
   $("t-run").hidden = true; $("t-ctrl").hidden = true; $("t-next").hidden = true; $("t-stage").hidden = true;
   const fin = $("t-finish"); fin.hidden = false;
-  const bl = T.block, p = state.player, tk = keyOf(today());
+  const bl = T.block;
   if (!T.counts) {
-    fin.innerHTML = '<h2>BLOCK DONE</h2><p>This was a preview. Only today\'s session counts toward the streak.</p><div class="row"><button type="button" class="big" data-fin="close">Back</button></div>';
+    fin.innerHTML = '<h2>BLOCK DONE</h2><p>This was a preview, so nothing was saved.</p><div class="row"><button type="button" class="big" data-fin="close">Back</button></div>';
     return;
   }
   if (bl.ch) {
-    const C = CHALLENGES[bl.ch], l = getLog(p, tk), cur = l && l.score && l.score.id === bl.ch ? l.score.value : "";
-    const pb = best(p, { type: "ch", id: bl.ch }, tk);
-    fin.innerHTML = '<h2>' + esc(C.label.toUpperCase()) + '</h2><p>' + esc(C.how) + '</p><div class="row">' + stepperHtml("score-fin", cur, C.max) + '<span class="unit">' + esc(C.unit) + '</span></div><p>Personal best: <b>' + (pb === null ? '—' : pb) + '</b></p><div class="row"><button type="button" class="big" data-fin="score">Save score</button><button type="button" class="ghost" data-fin="skip">Skip score</button></div><div id="fin-msg" aria-live="polite"></div>';
+    const C = CHALLENGES[bl.ch], l = todayLog(), cur = l && l.score && l.score.id === bl.ch ? l.score.value : "";
+    const pb = best({ type: "ch", id: bl.ch }, tk());
+    fin.innerHTML = '<h2>' + esc(C.label.toUpperCase()) + '</h2><p>' + esc(C.how) + '</p><div class="row">' + stepperHtml("score-fin", cur, C.max) + '<span class="unit">' + esc(C.unit) + '</span></div><p>Personal best: <b>' + (pb === null ? '—' : pb) + '</b> · Full points at <b>' + targetFor(bl.ch, myAge()) + '</b></p><div class="row"><button type="button" class="big" data-fin="score">Save score</button><button type="button" class="ghost" data-fin="skip">Skip score</button></div><div id="fin-msg" aria-live="polite"></div>';
     setTimeout(() => { const i = $("score-fin"); if (i) i.focus(); }, 50);
     return;
   }
-  updateLog(p, tk, (l) => { l.blocks[bl.id] = true; });
+  updateToday((l) => { l.blocks[bl.id] = true; });
   if (bl.test) {
-    fin.innerHTML = '<h2>TEST RESULTS</h2><p>Enter what you got. Leave blank anything you skipped.</p><div class="tests">' + TESTS[p].map((t) =>
+    fin.innerHTML = '<h2>TEST RESULTS</h2><p>Enter what you got. Leave blank anything you skipped.</p><div class="tests">' + TESTS[myGroup()].map((t) =>
       '<div class="test"><label for="ft-' + t.id + '">' + esc(t.label) + '</label>' + stepperHtml("ft-" + t.id, "", t.max) + ' <span class="unit">' + esc(t.unit) + '</span></div>').join("") +
       '</div><div class="row"><button type="button" class="big" data-fin="tests">Save tests</button><button type="button" class="ghost" data-fin="close">Later</button></div>';
     return;
@@ -526,26 +747,25 @@ function finishBlock() {
   finishedScreen();
 }
 function finishedScreen(extra) {
-  const p = state.player, td = currentDayKey(), mode = currentMode();
-  const l = getLog(p, keyOf(today())), b = (l && l.blocks) || {};
-  const next = blocksFor(p, td, mode).find((x) => !(b[x.id] || (x.id === "challenge" && b.skill)));
+  const l = todayLog(), b = (l && l.blocks) || {}, mode = l ? l.mode : state.modePref;
+  const next = blocksFor(todaySession(), mode).find((x) => !blockDone(b, x.id));
   const dayDone = l && l.complete;
-  $("t-finish").innerHTML = (extra || '') + '<h2>' + (dayDone ? 'DAY COMPLETE' : 'BLOCK DONE') + '</h2><p>' + (dayDone ? 'Streak: ' + currentStreak(p) + '. See you tomorrow.' : 'Nice work. ' + (next ? 'Next up: ' + esc(next.title) + '.' : '')) + '</p><div class="row">' +
+  $("t-finish").innerHTML = (extra || '') + '<h2>' + (dayDone ? 'DAY ' + l.day + ' COMPLETE' : 'BLOCK DONE') + '</h2><p>' + (dayDone ? 'Streak: ' + currentStreak(logs, tk()) + ' · +' + l.xp + ' XP today. See you tomorrow.' : 'Nice work. ' + (l ? l.xp + ' XP so far. ' : '') + (next ? 'Next up: ' + esc(next.title) + '.' : '')) + '</p><div class="row">' +
     (next && !dayDone ? '<button type="button" class="big" data-fin="next" data-next="' + next.id + '">Start ' + esc(next.title) + '</button>' : '') +
     '<button type="button" class="' + (next && !dayDone ? 'ghost' : 'big') + '" data-fin="close">Back to today</button></div>';
 }
 $("t-finish").addEventListener("click", (e) => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.step) { stepInput(t); return; }
-  const a = t.dataset.fin, p = state.player, tk = keyOf(today());
+  const a = t.dataset.fin;
   if (a === "close") closeTimer();
-  else if (a === "next") openTimer(t.dataset.next);
-  else if (a === "skip") { updateLog(p, tk, (l) => { l.blocks[T.block.id] = true; }); finishedScreen(); }
+  else if (a === "next") openTimer(t.dataset.next, "today");
+  else if (a === "skip") { updateToday((l) => { l.blocks[T.block.id] = true; }); finishedScreen(); }
   else if (a === "score") {
     const inp = $("score-fin");
     if (readNum(inp, CHALLENGES[T.block.ch].max) === null) { $("fin-msg").textContent = "Enter a score, or tap Skip score."; return; }
     const pb = saveScore(T.block.ch, inp, true);
-    finishedScreen(pb ? '<div class="pb-flash flash">NEW PERSONAL BEST</div>' : '');
+    finishedScreen(pb ? '<div class="pb-flash flash">NEW PERSONAL BEST · +10 XP</div>' : '');
     if (pb) chime([1040, 1320, 1560, 2080]);
   } else if (a === "tests") { if (saveTests($("t-finish"), "ft-")) finishedScreen(); }
 });
@@ -566,7 +786,7 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("timer").hidden && T.running) { keepAwake(true); tick(); } });
 
-/* ---------------- Preview & video modal ---------------- */
+/* ---------------- preview & video modal ---------------- */
 const modalPlayer = { p: null };
 let resumeAfterModal = false;
 function openModal(title, html) {
@@ -587,9 +807,8 @@ $("modal").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-video]");
   if (b) openVideo(b.dataset.video, b.dataset.block, false);
 });
-function openPreview(blockId, idx) {
-  const td = currentDayKey(), day = state.viewDay || td || "mon";
-  const bl = blocksFor(state.player, day, day === td ? currentMode() : "full").find((b) => b.id === blockId);
+function openPreview(ctx, blockId, idx) {
+  const bl = blocksFor(ctxSession(ctx), ctxMode(ctx)).find((b) => b.id === blockId);
   if (!bl) return;
   const it = bl.items[idx];
   const name = it.L ? it.n + " · Left" : it.n;
@@ -599,7 +818,7 @@ function openPreview(blockId, idx) {
     '<div class="row"><button type="button" class="btn" data-video="' + esc(it.n) + '" data-block="' + blockId + '">' + ICON.play + 'Real demo video</button></div>');
   if (spec) { modalPlayer.p = new Player($("m-canvas")); modalPlayer.p.play(spec); }
 }
-const displayName = (name) => /^(W\d|\d\d) /.test(name) ? name : name.replace(/ · (Left|Right)$/, "");
+const displayName = (name) => (/^(W\d|\d\d) /.test(name) ? name : name.replace(/ · (Left|Right)$/, ""));
 function openVideo(name, blockId, fromTimer) {
   const v = videoFor(name, blockId);
   if (modalPlayer.p) { modalPlayer.p.stop(); modalPlayer.p = null; }
@@ -609,54 +828,57 @@ function openVideo(name, blockId, fromTimer) {
       '<p class="small">' + esc(v.by) + (v.alt ? ' · shows the whole warm-up' : '') + '</p><div class="row"><a class="btn ghost" href="' + watchUrl(v) + '" target="_blank" rel="noopener">Open on YouTube</a>' +
       (v.alt ? '<a class="btn ghost" href="' + v.alt.url + '" target="_blank" rel="noopener">Find a video for this drill</a>' : '') + '</div>');
   } else {
-    openModal(displayName(name), '<p class="cue">No hand-picked video for this drill yet. Open a YouTube search for it:</p><div class="row"><a class="btn" href="' + v.url + '" target="_blank" rel="noopener">Search YouTube: “' + esc(v.q) + '”</a></div><p class="small">Pick a short video from a coach or trainer. The animation above shows the key positions.</p>');
+    openModal(displayName(name), '<p class="cue">No hand-picked video for this drill yet. Open a YouTube search for it:</p><div class="row"><a class="btn" href="' + v.url + '" target="_blank" rel="noopener">Search YouTube: “' + esc(v.q) + '”</a></div><p class="small">Pick a short video from a coach or trainer. The animation shows the key positions.</p>');
   }
 }
 
-/* ---------------- Auth gate ---------------- */
-function showGate(text, err, canSwitch) {
-  $("gate").hidden = false; $("app").hidden = true;
+/* ---------------- routing: sign-in → player card → app ---------------- */
+function showGate(text, err, signedIn) {
+  $("gate").hidden = false; $("app").hidden = true; $("onboard").hidden = true;
+  $("onboard").querySelector(".pform-host").innerHTML = "";
   $("gate-text").textContent = text;
   $("gate-err").textContent = err || "";
-  $("signin").hidden = !!canSwitch;
-  $("gate-signout").hidden = !canSwitch;
+  $("signin").hidden = !!signedIn;
+  $("gate-signout").hidden = !signedIn;
+}
+function showApp() {
+  $("gate").hidden = true; $("onboard").hidden = true; $("app").hidden = false;
+  $("onboard").querySelector(".pform-host").innerHTML = ""; // keep form ids unique while the profile modal is open
+  $("demo").hidden = !(state.user && state.user.demo);
+  if ($("timer").hidden) render();
+}
+function route() {
+  const u = state.user, p = state.prof;
+  if (!u) { showGate("Daily basketball training for ages 10–15. Sign in to start your 67 days."); return; }
+  if (p.state === "loading") { showGate("Loading your player card…", "", true); return; }
+  if (p.state === "error") { showGate("Couldn't load your player card.", p.message || "", true); return; }
+  if (p.state === "none") {
+    // Coaches (admins) start in coach view; anyone can choose it on the sign-up screen.
+    if (p.viewer || (u.admin && !u.demo && !state.wantCard)) { showApp(); return; }
+    showOnboard(); return;
+  }
+  showApp();
 }
 $("signin").addEventListener("click", () => { $("gate-err").textContent = ""; store.signIn().catch((e) => { $("gate-err").textContent = e.message; }); });
 $("gate-signout").addEventListener("click", () => store.signOutUser());
-$("signout").addEventListener("click", () => store.signOutUser());
 
-store.on("user", (u) => {
-  state.user = u;
-  if (!u) { showGate("Sign in to track Harvell's and Jasper's training."); return; }
-  $("demo").hidden = !u.demo; $("signout").hidden = !!u.demo;
+store.on("user", (u) => { state.user = u; if (!u) { logs = {}; state.prof = { state: "loading" }; } route(); });
+store.on("profile", (p) => {
+  const was = state.prof.state;
+  state.prof = p;
+  if (p.state === "ready" && was !== "ready") { state.tab = "today"; state.mapDay = null; state.board.cache = {}; }
+  route();
 });
-store.on("access", (a) => {
-  if (!state.user) return;
-  if (a.state === "checking") { showGate("Checking access for " + (state.user.email || "this account") + "…", "", true); return; }
-  if (a.state === "pending") {
-    showGate("Request sent for " + (state.user.email || "this account") + ". Ask H to approve it in the app (Coach guide → Family access). This page opens by itself once approved.", "", true);
-    return;
-  }
-  if (a.state === "error") { showGate("Couldn't check access.", a.message || "", true); return; }
-  // approved
-  if (a.player && !state.playerSetFromAccess) { state.player = a.player; state.playerSetFromAccess = true; lsSet("sc.player", state.player); }
-  $("gate").hidden = true; $("app").hidden = false;
-  render();
-});
-store.on("members", (list) => { state.members = list || []; if (state.tab === "guide" && $("timer").hidden && !$("app").hidden) render(); });
-store.on("logs", (l) => { logs = l || {}; if (state.user && $("timer").hidden) render(); else if (state.user) renderHero(); });
+store.on("logs", (l) => { logs = l || {}; if (!$("app").hidden && $("timer").hidden) render(); else if (!$("app").hidden && isPlayer()) renderHero(); });
 store.on("status", (s) => {
   state.status = s.mode;
   const txt = { demo: "Demo mode", connecting: "Connecting…", synced: s.pending ? "Saving…" : "Synced", offline: "Offline · saved here", error: "Sync problem" }[s.mode];
   if (txt) $("sync").textContent = txt;
-  if (s.mode === "denied") {
-    showGate("This Google account (" + (state.user && state.user.email) + ") doesn't have access yet.", "Ask H to approve it in Coach guide → Family access, or sign in with another account.", true);
-  }
   if (s.mode === "error" && s.message && !$("gate").hidden) $("gate-err").textContent = s.message;
 });
 
 /* midnight rollover */
-let lastDay = keyOf(today());
-setInterval(() => { const k = keyOf(today()); if (k !== lastDay) { lastDay = k; state.viewDay = null; if ($("timer").hidden && state.user) render(); } }, 60000);
+let lastDay = tk();
+setInterval(() => { const k = tk(); if (k !== lastDay) { lastDay = k; state.makeup = false; if ($("timer").hidden && !$("app").hidden) render(); } }, 60000);
 
 store.start();

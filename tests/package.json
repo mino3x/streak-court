@@ -1,0 +1,13 @@
+{
+  "name": "streak-court-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Firestore security rules tests. Run with the Firestore emulator: see .github/workflows/deploy.yml",
+  "scripts": {
+    "test": "node rules.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.3.0"
+  }
+}

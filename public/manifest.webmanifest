@@ -1,7 +1,7 @@
 {
   "name": "Streak Court",
   "short_name": "Streak Court",
-  "description": "Daily basketball training for Harvell (U10) and Jasper (U14).",
+  "description": "A 67-day basketball training program for ages 10–15, with streaks and a fair leaderboard.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#15130F",

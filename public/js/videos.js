@@ -14,6 +14,11 @@ const CURATED = {
   "07 Figure 8 · Backward": { id: COACH_ROCK, start: 250, by: "Coach Rock · Revenge Basketball" },
   "08 Figure 8 · Forward": { id: COACH_ROCK, start: 284, by: "Coach Rock · Revenge Basketball" },
   "09 Cross–Between–Behind": { id: COACH_ROCK, start: 315, by: "Coach Rock · Revenge Basketball" },
+  "01 Pound, eyes up · Right": { id: COACH_ROCK, start: 71, by: "Coach Rock · Revenge Basketball" },
+  "02 Pound, eyes up · Left": { id: COACH_ROCK, start: 101, by: "Coach Rock · Revenge Basketball" },
+  "05 Low Crossover": { id: COACH_ROCK, start: 193, by: "Coach Rock · Revenge Basketball" },
+  "07 Behind the Back": { id: COACH_ROCK, start: 224, by: "Coach Rock · Revenge Basketball" },
+  "09 Cross–Between–Behind, fast": { id: COACH_ROCK, start: 315, by: "Coach Rock · Revenge Basketball" },
   "Mikan drill": { id: "_VcY9M49JAs", by: "Intro to the Mikan drill" },
   "Mikan + reverse Mikan": { id: "_VcY9M49JAs", by: "Intro to the Mikan drill" },
   "CHALLENGE · Mikan Minute": { id: "_VcY9M49JAs", by: "Intro to the Mikan drill" },
@@ -53,11 +58,31 @@ const SEARCH_WORDS = {
   "Beat the Pro": "beat the pro basketball shooting game",
   "Triple-threat jabs": "triple threat jab step drill basketball",
   "1-2 step catch & shoot": "1-2 step catch and shoot basketball",
-  "Rebound & outlet": "rebound and outlet pass drill basketball"
+  "Rebound & outlet": "rebound and outlet pass drill basketball",
+  "03 In & Out": "in and out dribble drill basketball",
+  "04 In & Out": "in and out dribble drill basketball",
+  "06 Between the Legs": "between the legs dribble drill stationary",
+  "08 Double Crossover": "double crossover dribble drill",
+  "01 Pound + Cross, eyes up": "pound dribble crossover drill eyes up",
+  "02 Zig-Zag Crossovers": "zig zag crossover dribble drill",
+  "03 Hesitation & Go": "hesitation dribble move drill youth basketball",
+  "04 Retreat & Cross": "retreat dribble crossover drill",
+  "05 Spin Move": "spin move basketball drill youth",
+  "06 Combo into a Drive": "combo dribble into drive drill",
+  "Jab & go": "jab step drive basketball drill",
+  "Reverse layups": "reverse layup basketball drill",
+  "Floaters": "floater shot basketball drill",
+  "Step-back jumper": "step back jumper basketball drill",
+  "Crossover pull-up": "crossover pull up jumper drill",
+  "Crossover into layup": "crossover into layup drill cone",
+  "Double broad jump": "double broad jump plyometric",
+  "Depth drop & stick": "depth drop landing drill",
+  "Rear-foot elevated split squat": "rear foot elevated split squat bodyweight",
+  "Explosive push-ups": "explosive push up plyometric push up"
 };
 
 function baseName(name) {
-  return name.replace(/ · (Left|Right)$/, "").replace(/^(CHALLENGE|TEST) · /, "");
+  return name.replace(/ · (Left|Right)$/, "").replace(/^(CHALLENGE|TEST) · /, "").replace(/^(W\d|\d\d) /, "");
 }
 
 export function videoFor(name, blockId) {

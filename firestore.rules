@@ -1,10 +1,15 @@
 rules_version = '2';
 
-// Access model
-// - Admins (listed in isAdmin) can always read/write and approve family members.
-// - Anyone else signs in with Google, which creates a pending request in /members/{uid}.
-//   An admin approves it in the app (Coach guide → Family access). Approved members can train and log.
-// Keep ADMIN_EMAILS in public/js/access.js in sync with the list below.
+// Streak Court access rules
+// - Anyone signed in with a verified Google account can make a player card and train.
+// - players/{uid}: public card and stats, readable by every signed-in player (leaderboard).
+//   Only the owner writes it, and the stats may only change the way the app changes them:
+//   at most 100 XP per day, one day at a time, days move by one, streak never above days.
+// - users/{uid}: private details (age, parent OK). Owner and admins only.
+// - logs/{uid}_{date}: daily sessions. Owner and admins only; only recent dates can be written.
+// - Admins can hide a card from the leaderboard or delete it.
+// Keep ADMIN_EMAILS in public/js/access.js in sync with isAdmin().
+// The stats checks mirror nextStats() in public/js/stats.js. Tests: tests/rules.test.mjs.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -16,44 +21,109 @@ service cloud.firestore {
         'henrysastrak@gmail.com'
       ];
     }
-    function memberDoc() {
-      return /databases/$(database)/documents/members/$(request.auth.uid);
-    }
-    function isMember() {
-      return signedIn() && exists(memberDoc()) && get(memberDoc()).data.approved == true;
-    }
-    function allowed() {
-      return isAdmin() || isMember();
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
 
-    function validLog(id) {
-      let d = request.resource.data;
-      return d.player in ['harvell', 'jasper']
-        && d.date is string
-        && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-        && id == d.player + '_' + d.date
-        && d.mode in ['full', 'lite']
-        && d.blocks is map
-        && d.complete is bool
-        && d.keys().hasOnly(['player', 'date', 'mode', 'blocks', 'score', 'tests', 'complete', 'updatedAt', 'updatedBy']);
+    function isInt(v, lo, hi) {
+      return v is int && v >= lo && v <= hi;
+    }
+    function isDate(d) {
+      return d is string && d.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    function dateOrEmpty(d) {
+      return d == '' || isDate(d);
+    }
+    // A date close to now: up to 3 days back (phones that were offline) and 1 day ahead (time zones).
+    function recentDate(d) {
+      return isDate(d) && dayStart(d) > request.time - duration.value(3, 'd') && dayStart(d) < request.time + duration.value(2, 'd');
+    }
+    function dayStart(d) {
+      return timestamp.date(int(d.split('-')[0]), int(d.split('-')[1]), int(d.split('-')[2]));
     }
 
-    // Family members: one doc per Google account (uid).
-    match /members/{uid} {
-      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      // a new account may only file its own pending request
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.approved == false
-        && request.resource.data.player == null
-        && request.resource.data.keys().hasOnly(['email', 'name', 'approved', 'player', 'requestedAt']);
-      allow update, delete: if isAdmin();
+    function validGroup(g) {
+      return g in ['10-11', '12-15'];
+    }
+    function validAvatar(a) {
+      return a in ['fox', 'panda', 'tiger', 'lion', 'wolf', 'eagle', 'shark', 'bear', 'frog', 'penguin', 'owl', 'koala', 'monkey', 'dino', 'octopus', 'dragon'];
+    }
+    function validNickname(n) {
+      return n is string && n.matches('^[A-Za-z0-9][A-Za-z0-9 ._-]{1,15}$');
     }
 
-    // One document per player per day: logs/{player}_{yyyy-mm-dd}
+    function cardShape(d) {
+      return d.keys().hasOnly(['nickname', 'avatar', 'group', 'hidden', 'createdAt', 'updatedAt', 'xp', 'dayXp', 'dayDone', 'lastDate', 'weekXp', 'weekKey', 'days', 'streak', 'bestStreak', 'lastDone'])
+        && d.keys().hasAll(['nickname', 'avatar', 'group', 'hidden', 'createdAt', 'updatedAt', 'xp', 'dayXp', 'dayDone', 'lastDate', 'weekXp', 'weekKey', 'days', 'streak', 'bestStreak', 'lastDone'])
+        && validNickname(d.nickname) && validAvatar(d.avatar) && validGroup(d.group)
+        && d.hidden is bool && d.createdAt is int && d.updatedAt is int
+        && isInt(d.xp, 0, 1000000) && isInt(d.dayXp, 0, 100) && d.dayDone is bool
+        && dateOrEmpty(d.lastDate) && isInt(d.weekXp, 0, 500) && dateOrEmpty(d.weekKey)
+        && isInt(d.days, 0, 1000) && isInt(d.streak, 0, 1000) && isInt(d.bestStreak, 0, 1000)
+        && dateOrEmpty(d.lastDone)
+        && d.streak <= d.bestStreak && d.bestStreak <= d.days;
+    }
+    function freshCard(d) {
+      return d.hidden == false && d.xp == 0 && d.dayXp == 0 && d.dayDone == false && d.lastDate == ''
+        && d.weekXp == 0 && d.weekKey == '' && d.days == 0 && d.streak == 0 && d.bestStreak == 0 && d.lastDone == '';
+    }
+    // Same day as the last save: XP and weekly XP move together, days only by today's finish.
+    function sameDayOk(n, o) {
+      return n.xp - o.xp == n.dayXp - o.dayXp
+        && n.weekKey == o.weekKey && n.weekXp - o.weekXp == n.xp - o.xp
+        && ((n.dayDone == o.dayDone && n.days == o.days)
+          || (n.dayDone && !o.dayDone && n.days == o.days + 1)
+          || (!n.dayDone && o.dayDone && n.days == o.days - 1));
+    }
+    // A later day: today's XP is added once, days grow by at most one.
+    function newDayOk(n, o) {
+      return n.lastDate > o.lastDate && recentDate(n.lastDate)
+        && n.xp - o.xp == n.dayXp
+        && ((n.dayDone && n.days == o.days + 1) || (!n.dayDone && n.days == o.days))
+        && ((n.weekKey == o.weekKey && n.weekXp - o.weekXp == n.dayXp)
+          || (n.weekKey > o.weekKey && n.weekXp == n.dayXp));
+    }
+    function ownerUpdateOk(n, o) {
+      return cardShape(n) && n.hidden == o.hidden && n.createdAt == o.createdAt
+        && ((n.lastDate == o.lastDate && sameDayOk(n, o)) || (n.lastDate != o.lastDate && newDayOk(n, o)));
+    }
+
+    // Public player cards (leaderboard).
+    match /players/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid) && cardShape(request.resource.data) && freshCard(request.resource.data);
+      allow update: if (isOwner(uid) && ownerUpdateOk(request.resource.data, resource.data))
+        || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden']) && request.resource.data.hidden is bool);
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Private details.
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['age', 'consent', 'createdAt'])
+        && isInt(request.resource.data.age, 10, 15)
+        && request.resource.data.consent == true
+        && request.resource.data.createdAt is int;
+      allow delete: if isOwner(uid);
+    }
+
+    // One document per player per day: logs/{uid}_{yyyy-mm-dd}
+    function validLog(id, d) {
+      return d.keys().hasOnly(['uid', 'date', 'day', 'group', 'mode', 'blocks', 'score', 'tests', 'complete', 'xp', 'parts', 'updatedAt'])
+        && d.keys().hasAll(['uid', 'date', 'day', 'group', 'mode', 'blocks', 'tests', 'complete', 'xp'])
+        && d.uid == request.auth.uid
+        && recentDate(d.date)
+        && id == d.uid + '_' + d.date
+        && isInt(d.day, 1, 1000) && validGroup(d.group) && d.mode in ['full', 'lite']
+        && d.blocks is map && d.tests is map && d.complete is bool && isInt(d.xp, 0, 100)
+        && (!('score' in d) || d.score == null || d.score is map)
+        && (!('parts' in d) || d.parts is map);
+    }
     match /logs/{id} {
-      allow read: if allowed();
-      allow create, update: if allowed() && validLog(id);
-      allow delete: if false;
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create, update: if signedIn() && validLog(id, request.resource.data);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     // Everything else is closed.

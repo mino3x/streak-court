@@ -427,18 +427,23 @@ function drawTop(ctx, cam, spec, t) {
   });
   if (!spec.path) return;
   const st = sampleTop(spec.path, t, spec.dur);
-  // ball
+  const fr = st.f * D2R, fwd = [Math.sin(fr), Math.cos(fr)], side = [Math.cos(fr), -Math.sin(fr)];
+  // ball: `on` = with the player (sd: -1 left hand, 1 right hand), db = dribbling (bounces)
   let ball = null;
   if (spec.ball) {
     const bp = spec.ball.slice(); if (bp[bp.length - 1].t < spec.dur) bp.push(Object.assign({}, bp[0], { t: spec.dur }));
     let i = 0; while (i < bp.length - 2 && t >= bp[i + 1].t) i++;
     const a = bp[i], b = bp[i + 1], k = Math.max(0, Math.min(1, (t - a.t) / ((b.t - a.t) || 1)));
-    const pa = a.on ? [st.x + 0.25 * Math.sin(st.f * D2R), st.y + 0.25 * Math.cos(st.f * D2R)] : [a.x, a.y];
-    const pb = b.on ? [st.x + 0.25 * Math.sin(st.f * D2R), st.y + 0.25 * Math.cos(st.f * D2R)] : [b.x, b.y];
-    if (!a.hide) ball = [lerp(pa[0], pb[0], k), lerp(pa[1], pb[1], k), a.lift ? a.lift * 4 * k * (1 - k) : 0];
+    const onPos = (q) => {
+      const sd = q.sd || 0, f = sd ? 0.12 : 0.25;
+      return [st.x + fwd[0] * f + side[0] * sd * 0.3, st.y + fwd[1] * f + side[1] * sd * 0.3];
+    };
+    const pa = a.on ? onPos(a) : [a.x, a.y];
+    const pb = b.on ? onPos(b) : [b.x, b.y];
+    const bounce = a.db ? Math.abs(Math.sin(t * Math.PI * 2.6)) : 0;
+    if (!a.hide) ball = [lerp(pa[0], pb[0], k), lerp(pa[1], pb[1], k), a.lift ? a.lift * 4 * k * (1 - k) : bounce];
   }
   // player token
-  const fr = st.f * D2R, fwd = [Math.sin(fr), Math.cos(fr)], side = [Math.cos(fr), -Math.sin(fr)];
   const ph = (t * (st.m === "slide" ? 3 : 4)) % 1, sw = Math.sin(ph * Math.PI * 2);
   let fl, frt;
   const stance = st.m === "slide" ? 0.2 + (st.moving ? 0.08 * sw : 0) : 0.13;

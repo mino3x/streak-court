@@ -926,6 +926,291 @@ A("h_combo", { view: "front", dur: 2.4, world: HANDW,
   ],
   props: { labels: [lab(0, 1.95, "CROSS", 0, 0.55, { accent: 1 }), lab(0, 1.95, "BETWEEN", 0.6, 1.15, { accent: 1 }), lab(0, 1.95, "BEHIND", 1.2, 2.0, { accent: 1 })] } });
 
+// ================= LEVEL 2 & 3 additions =================
+// Same animation, new label (front/side views keep the label near the top).
+function relabel(id, labels) {
+  const s = ANIMS[id];
+  return M(s, { _kf: null, props: M(s.props || {}, { labels }) });
+}
+
+// ---- Handles level 2 (front view) ----
+A("h_pound_eyes_R", relabel("h_pound_R", [lab(0, 1.95, "EYES UP · HARD POUNDS")]));
+A("h_pound_eyes_L", mirrorSpec(ANIMS.h_pound_eyes_R));
+A("h_low_cross", relabel("h_crossover", [lab(0, 1.95, "LOW · QUICK · HAND TO HAND")]));
+A("h_combo_fast", relabel("h_combo", ANIMS.h_combo.props.labels.concat([lab(0, 1.68, "FASTER · STAY LOW")])));
+
+A("h_inout_R", { view: "front", dur: 1.2, world: HANDW,
+  kf: [
+    { t: 0, p: M(DRIB, { ru: 35, rf: 45, lu: 45, lf: 90 }) },
+    { t: 0.3, p: M(DRIB, { t: 6, h: 6, ru: -5, rf: -25, lu: 45, lf: 90 }) },
+    { t: 0.6, p: M(DRIB, { ru: 35, rf: 45, lu: 45, lf: 90 }) },
+    { t: 0.9, p: M(DRIB, { t: 6, h: 6, ru: -5, rf: -25, lu: 45, lf: 90 }) }
+  ],
+  ball: [
+    { t: 0, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 0.15, x: -0.2, y: 0.12, z: 0.4, e: "out" },
+    { t: 0.3, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 0.45, x: -0.45, y: 0.12, z: 0.4, e: "out" },
+    { t: 0.6, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 0.75, x: -0.2, y: 0.12, z: 0.4, e: "out" },
+    { t: 0.9, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 1.05, x: -0.45, y: 0.12, z: 0.4, e: "out" }
+  ],
+  props: { labels: [lab(0, 1.95, "SAME HAND · SELL IT"), lab(0, 1.68, "IN", 0.15, 0.45, { accent: 1 }), lab(0, 1.68, "OUT", 0.45, 0.75), lab(0, 1.68, "IN", 0.75, 1.05, { accent: 1 }), lab(0, 1.68, "OUT", 1.05, 1.2)] } });
+A("h_inout_L", mirrorSpec(ANIMS.h_inout_R));
+
+const WIDE = M(DRIB, { py: 0.58, lfoot: 0.44, rfoot: -0.44 });
+A("h_between", { view: "front", dur: 1.2, world: HANDW,
+  kf: [{ t: 0, p: M(WIDE, { ru: 35, rf: 40, lu: 20, lf: 15 }) }, { t: 0.6, p: M(WIDE, { lu: 35, lf: 40, ru: 20, rf: 15 }) }],
+  ball: [{ t: 0, j: "handR", dy: -0.1, z: 0.3, e: "in" }, { t: 0.3, x: 0, y: 0.12, z: -0.5, e: "out" }, { t: 0.6, j: "handL", dy: -0.1, z: 0.3, e: "in" }, { t: 0.9, x: 0, y: 0.12, z: -0.5, e: "out" }],
+  props: { labels: [lab(0, 1.95, "WIDE STANCE · BETWEEN THE FEET")] } });
+
+A("h_double_cross", { view: "front", dur: 1.6, world: HANDW,
+  kf: [
+    { t: 0, p: M(DRIB, { ru: 35, rf: 40, lu: 25, lf: 20 }) }, { t: 0.3, p: M(DRIB, { lu: 35, lf: 40, ru: 25, rf: 20 }) },
+    { t: 0.6, p: M(DRIB, { ru: 35, rf: 40, lu: 25, lf: 20 }) }, { t: 1.1, p: M(DRIB, { ru: 25, rf: 30, lu: 45, lf: 90 }) }
+  ],
+  ball: [
+    { t: 0, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 0.15, x: 0, y: 0.12, z: 0.4, e: "out" },
+    { t: 0.3, j: "handL", dy: -0.1, z: 0.4, e: "in" }, { t: 0.45, x: 0, y: 0.12, z: 0.4, e: "out" },
+    { t: 0.6, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 0.85, x: -0.5, y: 0.12, z: 0.4, e: "out" },
+    { t: 1.1, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 1.35, x: -0.5, y: 0.12, z: 0.4, e: "out" }
+  ],
+  props: { labels: [lab(0, 1.95, "CROSS", 0, 0.3, { accent: 1 }), lab(0, 1.95, "CROSS", 0.3, 0.6, { accent: 1 }), lab(0, 1.95, "HOLD", 0.6, 1.6)] } });
+
+// ---- Handles level 3 ----
+A("h_pound_cross", { view: "front", dur: 2.4, world: HANDW,
+  kf: [
+    { t: 0, p: M(DRIB, { ru: 25, rf: 30, lu: 45, lf: 90 }) }, { t: 0.2, p: M(DRIB, { ru: 10, rf: -5, lu: 45, lf: 90 }) },
+    { t: 0.4, p: M(DRIB, { ru: 25, rf: 30, lu: 45, lf: 90 }) }, { t: 0.6, p: M(DRIB, { ru: 10, rf: -5, lu: 45, lf: 90 }) },
+    { t: 0.8, p: M(DRIB, { ru: 35, rf: 40, lu: 25, lf: 20 }) }, { t: 1.2, p: M(DRIB, { lu: 25, lf: 30, ru: 45, rf: 90 }) },
+    { t: 1.4, p: M(DRIB, { lu: 10, lf: -5, ru: 45, rf: 90 }) }, { t: 1.6, p: M(DRIB, { lu: 25, lf: 30, ru: 45, rf: 90 }) },
+    { t: 1.8, p: M(DRIB, { lu: 10, lf: -5, ru: 45, rf: 90 }) }, { t: 2.0, p: M(DRIB, { lu: 35, lf: 40, ru: 25, rf: 20 }) }
+  ],
+  ball: [
+    { t: 0, j: "handR", dy: -0.1, z: 0.3, e: "in" }, { t: 0.2, x: -0.55, y: 0.12, z: 0.3, e: "out" },
+    { t: 0.4, j: "handR", dy: -0.1, z: 0.3, e: "in" }, { t: 0.6, x: -0.55, y: 0.12, z: 0.3, e: "out" },
+    { t: 0.8, j: "handR", dy: -0.1, z: 0.4, e: "in" }, { t: 1.0, x: 0, y: 0.12, z: 0.4, e: "out" },
+    { t: 1.2, j: "handL", dy: -0.1, z: 0.3, e: "in" }, { t: 1.4, x: 0.55, y: 0.12, z: 0.3, e: "out" },
+    { t: 1.6, j: "handL", dy: -0.1, z: 0.3, e: "in" }, { t: 1.8, x: 0.55, y: 0.12, z: 0.3, e: "out" },
+    { t: 2.0, j: "handL", dy: -0.1, z: 0.4, e: "in" }, { t: 2.2, x: 0, y: 0.12, z: 0.4, e: "out" }
+  ],
+  props: { labels: [lab(0, 1.95, "POUND · POUND", 0, 0.8), lab(0, 1.95, "CROSS", 0.8, 1.2, { accent: 1 }), lab(0, 1.95, "POUND · POUND", 1.2, 2.0), lab(0, 1.95, "CROSS", 2.0, 2.4, { accent: 1 }), lab(0, 1.68, "EYES UP")] } });
+
+// Top view, player moving left to right. f: 90 = facing right. sd: 1 = right hand, -1 = left hand.
+const MOVE_W = { x0: -4.4, x1: 4.4, y0: -2.4, y1: 2.5 };
+const TOPLAB = (text) => lab(0, -2.1, text);
+A("h_zigzag", { view: "top", dur: 6.2, world: MOVE_W, showMode: false,
+  props: { cones: [[-2.5, 1.5], [-0.9, -1.5], [0.7, 1.5], [2.3, -1.5]], labels: [TOPLAB("CROSS AT EVERY TURN · SWITCH HANDS")] },
+  path: [
+    { t: 0, x: -3.9, y: 0, f: 55 }, { t: 0.9, x: -2.5, y: 1.0, f: 55 }, { t: 1.1, x: -2.5, y: 1.0, f: 141 },
+    { t: 2.3, x: -0.9, y: -1.0, f: 141 }, { t: 2.5, x: -0.9, y: -1.0, f: 39 },
+    { t: 3.7, x: 0.7, y: 1.0, f: 39 }, { t: 3.9, x: 0.7, y: 1.0, f: 141 },
+    { t: 5.1, x: 2.3, y: -1.0, f: 141 }, { t: 5.3, x: 2.3, y: -1.0, f: 52 },
+    { t: 5.8, x: 3.6, y: 0, f: 90, m: "stand" }, { t: 6.2, x: -3.9, y: 0, f: 55, m: "stand" }
+  ],
+  ball: [
+    { t: 0, on: true, sd: -1, db: 1 }, { t: 0.9, on: true, sd: -1, db: 1 }, { t: 1.1, on: true, sd: 1, db: 1 },
+    { t: 2.3, on: true, sd: 1, db: 1 }, { t: 2.5, on: true, sd: -1, db: 1 },
+    { t: 3.7, on: true, sd: -1, db: 1 }, { t: 3.9, on: true, sd: 1, db: 1 },
+    { t: 5.1, on: true, sd: 1, db: 1 }, { t: 5.3, on: true, sd: -1, db: 1 }, { t: 5.8, on: true, sd: -1 }
+  ],
+  signals: [{ t0: 0.85, t1: 1.3, text: "CROSS", x: 0, y: 1.95 }, { t0: 2.25, t1: 2.7, text: "CROSS", x: 0, y: 1.95 }, { t0: 3.65, t1: 4.1, text: "CROSS", x: 0, y: 1.95 }, { t0: 5.05, t1: 5.5, text: "CROSS", x: 0, y: 1.95 }] });
+
+A("h_hesi", { view: "top", dur: 4.4, world: MOVE_W, showMode: false,
+  props: { cones: [[0.1, 0.15]], labels: [TOPLAB("DRIBBLE · HESI · EXPLODE PAST")] },
+  path: [
+    { t: 0, x: -3.8, y: -0.1, f: 90 }, { t: 1.2, x: -1.3, y: -0.1, f: 90, e: "out" },
+    { t: 1.9, x: -0.95, y: -0.15, f: 90, e: "in" }, { t: 2.4, x: 0.8, y: -0.75, f: 100 }, { t: 2.9, x: 3.4, y: -0.3, f: 85, m: "stand" },
+    { t: 4.4, x: -3.8, y: -0.1, f: 90, m: "stand" }
+  ],
+  ball: [{ t: 0, on: true, sd: 1, db: 1 }, { t: 2.9, on: true, sd: 1 }],
+  signals: [{ t0: 1.25, t1: 1.9, text: "HESI", x: -1.1, y: 1.6 }, { t0: 1.9, t1: 2.8, text: "GO!", x: 1.6, y: 1.6 }] });
+
+A("h_retreat", { view: "top", dur: 5.0, world: MOVE_W, showMode: false,
+  props: { labels: [TOPLAB("FORWARD · RETREAT · CROSS · GO")] },
+  path: [
+    { t: 0, x: -3.4, y: -0.3, f: 90 }, { t: 1.0, x: -0.9, y: -0.3, f: 90 },
+    { t: 1.1, x: -0.9, y: -0.3, f: 90, m: "back" }, { t: 2.0, x: -2.1, y: -0.3, f: 90, m: "back" },
+    { t: 2.3, x: -2.1, y: -0.3, f: 90 }, { t: 3.4, x: 1.4, y: 1.1, f: 68 }, { t: 3.8, x: 2.4, y: 1.2, f: 90, m: "stand" },
+    { t: 5.0, x: -3.4, y: -0.3, f: 90, m: "stand" }
+  ],
+  ball: [{ t: 0, on: true, sd: 1, db: 1 }, { t: 2.05, on: true, sd: 1, db: 1 }, { t: 2.3, on: true, sd: -1, db: 1 }, { t: 3.8, on: true, sd: -1 }],
+  signals: [{ t0: 1.05, t1: 2.0, text: "BACK", x: -1.5, y: 1.6 }, { t0: 2.0, t1: 2.45, text: "CROSS", x: -1.5, y: 1.6 }, { t0: 2.45, t1: 3.4, text: "GO!", x: 1.4, y: -1.2 }] });
+
+A("h_spin", { view: "top", dur: 4.6, world: MOVE_W, showMode: false,
+  props: { cones: [[0.15, -0.3]], labels: [TOPLAB("PLANT · SPIN · KEEP IT TIGHT")] },
+  path: [
+    { t: 0, x: -3.6, y: -0.3, f: 90 }, { t: 1.2, x: -0.75, y: -0.3, f: 90 },
+    { t: 1.45, x: -0.55, y: 0.05, f: 210 }, { t: 1.7, x: -0.3, y: 0.4, f: 330 }, { t: 1.95, x: 0.05, y: 0.7, f: 450 },
+    { t: 2.9, x: 2.9, y: 0.7, f: 450 }, { t: 3.3, x: 3.2, y: 0.7, f: 450, m: "stand" },
+    { t: 4.6, x: -3.6, y: -0.3, f: 90, m: "stand" }
+  ],
+  ball: [{ t: 0, on: true, sd: 1, db: 1 }, { t: 1.2, on: true, sd: 1 }, { t: 1.95, on: true, sd: -1, db: 1 }, { t: 3.3, on: true, sd: -1 }],
+  signals: [{ t0: 1.15, t1: 2.1, text: "SPIN", x: -0.3, y: 1.7 }] });
+
+A("h_combo_drive", { view: "top", dur: 5.0, world: MOVE_W, showMode: false,
+  props: { labels: [TOPLAB("COMBO · THEN 3 HARD DRIBBLES")] },
+  path: [
+    { t: 0, x: -2.8, y: 0, f: 90, m: "stand" }, { t: 2.0, x: -2.8, y: 0, f: 90, m: "stand" },
+    { t: 3.3, x: 2.6, y: 0.2, f: 90 }, { t: 3.6, x: 2.8, y: 0.2, f: 90, m: "stand" }, { t: 5.0, x: -2.8, y: 0, f: 90, m: "stand" }
+  ],
+  ball: [
+    { t: 0, on: true, sd: 1, db: 1 }, { t: 0.35, on: true, sd: -1, db: 1 }, { t: 0.7, on: true, sd: -1, db: 1 },
+    { t: 1.0, on: true, sd: 1, db: 1 }, { t: 1.3, on: true, sd: 1, db: 1 }, { t: 1.65, on: true, sd: -1, db: 1 },
+    { t: 2.0, on: true, sd: 1, db: 1 }, { t: 3.6, on: true, sd: 1 }
+  ],
+  signals: [{ t0: 0, t1: 0.5, text: "CROSS", x: -1.2, y: 1.6 }, { t0: 0.6, t1: 1.1, text: "BETWEEN", x: -1.2, y: 1.6 }, { t0: 1.2, t1: 1.8, text: "BEHIND", x: -1.2, y: 1.6 }, { t0: 2.0, t1: 3.3, text: "GO!", x: 1.2, y: 1.6 }] });
+
+// ---- Skill additions ----
+A("spots_close5", spotsSpec({ spots: CLOSE5, label: "5 CLOSE SPOTS · 3 MAKES, THEN MOVE" }));
+A("spots_mid_both", spotsSpec({ spots: MID5, label: "5 SPOTS · SAME SHOT EVERY TIME" }));
+A("corner_threes", spotsSpec({ spots: [[-6.6, 4.4], [6.6, 4.4]], label: "CORNER THREES · ONLY WITH GOOD FORM" }));
+A("relocate_corner", spotsSpec({ spots: [[-6.6, 4.4], [-5.0, -0.2], [6.6, 4.4], [5.0, -0.2]], label: "CORNER → WING · SHOOT AGAIN" }));
+A("relocation_threes", spotsSpec({ spots: THREE5, label: "SHOOT · SPRINT · CATCH · SHOOT" }));
+A("elbow_pullup", pullupSpec({ label: "ONE DRIBBLE INTO THE ELBOW · STOP · SHOOT" }));
+A("cross_pullup", (() => {
+  const s = pullupSpec({ label: "CROSSOVER · STOP · PULL UP" });
+  // the dribble crosses from the near (right) hand to the far (left) hand, then gathers
+  s.ball = [
+    { t: 0, j: "handR", dx: 0.03, dy: 0.1 }, { t: 0.6, j: "handR", dx: 0.03, dy: 0.1 },
+    { t: 0.75, j: "handR", dy: -0.05, e: "in" }, { t: 0.9, x: 0.6, y: 0.12, e: "out" }, { t: 1.05, j: "handL", dy: -0.05 },
+    { t: 1.3, mid: ["handL", "handR"], dy: 0.08 }, { t: 2.1, j: "handR", dx: 0.03, dy: 0.1, e: "lin", arc: 1.0 },
+    { t: 3.0, x: 2.37, y: 3.1, e: "in" }, { t: 3.25, x: 2.37, y: 2.65, e: "in" }, { t: 3.6, x: 2.1, y: 0.12, e: "lin", arc: 0.8 }
+  ];
+  s.props.labels.push(lab(0.6, 1.2, "CROSS", 0.7, 1.1, { accent: 1 }));
+  return s;
+})());
+A("shotfake_pullup", (() => {
+  const s = pullupSpec({ fake: true, label: "SHOT FAKE · ONE DRIBBLE · PULL UP" });
+  s.kf[1] = { t: 0.35, p: M(SHOOT_SET, { x: 0, lfoot: 0.12, rfoot: 0, t: 4, py: 0.74, lu: 120, lf: 150, ru: 130, rf: 165 }) };
+  s.ball[1] = { t: 0.35, j: "handR", dx: 0.03, dy: 0.12 };
+  return s;
+})());
+
+A("jab_go", { view: "side", dur: 3.2, near: "R", world: { x0: -1.0, x1: 2.4, y0: -0.1, y1: 2.1 },
+  base: M(READY, { t: 18, py: 0.64, lu: 40, lf: 110, ru: 20, rf: 100 }),
+  kf: [
+    { t: 0, p: { x: 0, lfoot: 0.18, rfoot: -0.18 } },
+    { t: 0.35, p: { x: 0.08, lfoot: 0.18, rfoot: 0.35 } },
+    { t: 0.7, p: { x: 0, lfoot: 0.18, rfoot: -0.18 } },
+    { t: 1.05, p: { x: 0.45, t: 30, py: 0.58, lfoot: 0.18, rfoot: 0.95, ru: 30, rf: 60 } },
+    { t: 1.45, p: M(NOIK, { x: 0.95, t: 22, lt: -25, ls: -70, rt: 40, rs: 5, ru: 30, rf: 60, lu: 40, lf: 90 }) },
+    { t: 1.85, p: M(NOIK, { x: 1.45, t: 20, lt: 40, ls: 5, rt: -25, rs: -70, ru: 30, rf: 60, lu: 40, lf: 90 }) },
+    { t: 2.3, p: { x: 1.5, lfoot: 1.68, rfoot: 1.32 } },
+    { t: 3.2, p: { x: 0, lfoot: 0.18, rfoot: -0.18 } }
+  ],
+  ball: [
+    { t: 0, j: "handR", dx: 0.05, dy: 0.05 }, { t: 0.9, j: "handR", dx: 0.05, dy: 0.05 },
+    { t: 1.05, j: "handR", dy: -0.05, e: "in" }, { t: 1.25, x: 1.0, y: 0.12, e: "out" }, { t: 1.45, j: "handR", dy: -0.05, e: "in" },
+    { t: 1.65, x: 1.5, y: 0.12, e: "out" }, { t: 1.85, j: "handR", dy: -0.05 }, { t: 2.3, j: "handR", dx: 0.05, dy: 0.05 }
+  ],
+  props: { labels: [lab(0.7, 1.95, "JAB", 0.2, 0.7), lab(0.7, 1.95, "GO! LONG FIRST STEP", 0.9, 2.3, { accent: 1 })] } });
+
+A("floater", (() => {
+  const hoopX = 2.4;
+  const start = M(READY, { t: 15, x: -0.6, lfoot: -0.45, rfoot: -0.8, ru: 30, rf: 60 });
+  const kf = [
+    { t: 0, p: start },
+    { t: 0.45, p: M(NOIK, { x: 0.0, t: 14, lt: 40, ls: 5, rt: -25, rs: -70, ru: 30, rf: 60, lu: -20, lf: 20 }) },
+    { t: 0.8, p: M(NOIK, { x: 0.45, t: 12, lt: -20, ls: -60, rt: 40, rs: 5, ru: 70, rf: 130, lu: 60, lf: 120 }) },
+    { t: 1.05, p: M(NOIK, { x: 0.7, t: 6, lt: 25, ls: 0, rt: -10, rs: -40, ru: 110, rf: 150, lu: 90, lf: 140 }) },
+    { t: 1.3, p: M(NOIK, { x: 0.85, air: 0.3, t: 0, h: -10, lt: 0, ls: 0, lfa: 150, rt: 85, rs: 0, ru: 170, rf: 178, lu: 70, lf: 110 }), e: "in" },
+    { t: 1.7, p: M(HALF, { x: 0.95, lfoot: 1.05, rfoot: 0.9 }) },
+    { t: 2.9, p: start }
+  ];
+  const ball = [
+    { t: 0, j: "handR", dy: -0.05, e: "in" }, { t: 0.25, x: 0.1, y: 0.12, e: "out" }, { t: 0.55, j: "handR", dy: -0.05 },
+    { t: 0.8, mid: ["handL", "handR"], dy: 0.05 }, { t: 1.3, j: "handR", dy: 0.1, e: "lin", arc: 1.3 },
+    { t: 2.05, x: hoopX - 0.23, y: 3.1, e: "in" }, { t: 2.3, x: hoopX - 0.25, y: 2.6, e: "in" },
+    { t: 2.65, x: hoopX - 0.5, y: 0.12, e: "lin", arc: 0.6 }, { t: 2.9, j: "handR", dy: -0.05 }
+  ];
+  return { view: "side", dur: 2.9, world: { x0: -1.2, x1: 3.3, y0: -0.1, y1: 4.3 }, near: "R", kf, ball,
+    props: { hoop: { x: hoopX }, labels: [lab(0.9, 4.15, "STOP SHORT · ONE FOOT · SOFT & HIGH")] } };
+})());
+
+A("stepback", (() => {
+  const P = (x, o) => M(o, { x, lfoot: x + 0.12, rfoot: x });
+  const start = M(READY, { t: 15, x: -0.5, lfoot: -0.35, rfoot: -0.7, ru: 30, rf: 60 });
+  const kf = [
+    { t: 0, p: start },
+    { t: 0.4, p: M(NOIK, { x: -0.1, t: 16, lt: 40, ls: 5, rt: -25, rs: -70, ru: 30, rf: 60, lu: 40, lf: 90 }) },
+    { t: 0.8, p: M(HALF, { x: 0.3, t: 32, lfoot: 0.62, rfoot: 0.12, ru: 30, rf: 60, lu: 50, lf: 100 }) },
+    { t: 1.05, p: M(NOIK, { x: 0.05, air: 0.1, t: 10, lt: 15, ls: -10, rt: 10, rs: -15, ru: 70, rf: 140, lu: 70, lf: 140 }) },
+    { t: 1.3, p: P(-0.2, SHOOT_DIP) },
+    { t: 1.6, p: P(-0.2, SHOOT_DIP), e: "out" },
+    { t: 1.9, p: P(-0.2, SHOOT_UP) },
+    { t: 2.1, p: P(-0.2, FOLLOW) },
+    { t: 2.9, p: P(-0.2, FOLLOW) },
+    { t: 3.6, p: start }
+  ];
+  const ball = [
+    { t: 0, j: "handR", dy: -0.05, e: "in" }, { t: 0.2, x: -0.2, y: 0.12, e: "out" }, { t: 0.4, j: "handR", dy: -0.05, e: "in" },
+    { t: 0.6, x: 0.35, y: 0.12, e: "out" }, { t: 0.85, j: "handR", dy: -0.05 },
+    { t: 1.1, mid: ["handL", "handR"], dy: 0.08 }, { t: 1.9, j: "handR", dx: 0.03, dy: 0.1, e: "lin", arc: 1.0 },
+    { t: 2.75, x: 2.37, y: 3.1, e: "in" }, { t: 3.0, x: 2.37, y: 2.65, e: "in" }, { t: 3.35, x: 2.1, y: 0.12, e: "lin", arc: 0.8 }, { t: 3.6, j: "handR", dy: -0.05 }
+  ];
+  return { view: "side", dur: 3.6, world: COURT, near: "R", kf, ball,
+    props: { hoop: { x: 2.6 }, labels: [lab(1.2, 3.7, "ATTACK", 0, 0.8), lab(1.2, 3.7, "PLANT · PUSH BACK", 0.8, 1.3, { accent: 1 }), lab(1.2, 3.7, "SHOOT ON BALANCE", 1.3, 3.6)] } };
+})());
+
+A("reverse_layup", { view: "top", dur: 3.4, world: { x0: -4, x1: 4.6, y0: -1.5, y1: 5.6 }, showMode: false,
+  props: M(HALF_COURT, { hoop: [0, 4.0], labels: [lab(0.3, -1.1, "UNDER THE RIM · FINISH ON THE OTHER SIDE")] }),
+  path: [
+    { t: 0, x: 3.4, y: 0.4, f: -40 }, { t: 1.0, x: 1.4, y: 3.2, f: -40 }, { t: 1.5, x: -0.1, y: 4.2, f: -80 },
+    { t: 1.8, x: -0.8, y: 4.0, f: 60, m: "stand" }, { t: 3.4, x: 3.4, y: 0.4, f: -40, m: "stand" }
+  ],
+  ball: [{ t: 0, on: true, sd: 1, db: 1 }, { t: 1.4, on: true, sd: 1 }, { t: 1.7, on: true, lift: 1 }, { t: 2.0, x: 0, y: 4.0 }, { t: 2.3, x: -0.3, y: 3.5, hide: true }, { t: 3.3, on: true }],
+  signals: [{ t0: 1.6, t1: 2.2, text: "REVERSE", x: -2.2, y: 2.2 }] });
+
+A("cross_layup", { view: "top", dur: 3.6, world: { x0: -4, x1: 4, y0: -4.2, y1: 5.6 }, showMode: false,
+  props: M(HALF_COURT, { hoop: [0, 4.0], cones: [[0.9, -0.4]], labels: [lab(0, -3.8, "CROSS AT THE CONE · ATTACK · FINISH")] }),
+  path: [
+    { t: 0, x: 1.4, y: -3.4, f: -5 }, { t: 1.0, x: 1.25, y: -1.2, f: -5 }, { t: 1.2, x: 1.2, y: -1.0, f: -30 },
+    { t: 2.1, x: -0.3, y: 2.6, f: -10 }, { t: 2.4, x: -0.35, y: 3.2, f: 0, m: "stand" }, { t: 3.6, x: 1.4, y: -3.4, f: -5, m: "stand" }
+  ],
+  ball: [{ t: 0, on: true, sd: 1, db: 1 }, { t: 1.0, on: true, sd: 1, db: 1 }, { t: 1.25, on: true, sd: -1, db: 1 }, { t: 2.2, on: true, sd: -1, lift: 1 }, { t: 2.55, x: 0, y: 4.0 }, { t: 2.9, x: 0.2, y: 3.4, hide: true }, { t: 3.5, on: true }],
+  signals: [{ t0: 0.95, t1: 1.5, text: "CROSS", x: 2.8, y: -1.0 }] });
+
+// ---- Strength & jump additions ----
+A("rfe_split_squat", { view: "side", dur: 2.8, world: { x0: -1.3, x1: 1.3, y0: -0.1, y1: 2.05 },
+  base: { t: 8, h: 0, lfoot: 0.34, rfoot: -0.52, rfooty: 0.44, rfa: 160, lu: 6, lf: 60, ru: 6, rf: 60 },
+  kf: [{ t: 0, p: { py: 0.78 } }, { t: 1.2, p: { py: 0.47 } }, { t: 1.5, p: { py: 0.47 } }, { t: 2.8, p: { py: 0.78 } }],
+  props: { bench: { x: -0.85, w: 0.5, h: 0.4 }, labels: [lab(0, 1.95, "BACK FOOT UP · SLOW DOWN · DRIVE UP")] } });
+
+A("explosive_pushup", (() => {
+  const s = pushupSpec({ down: 0.9, up: 0.25, props: { labels: [lab(0.1, 1.15, "PUSH FAST · HANDS OFF · LAND SOFT")] } });
+  s.dur = 2.3;
+  s.kf = [
+    { t: 0, p: {} }, { t: 0.2, p: {}, e: "io" }, { t: 1.1, p: PUSH_DOWN }, { t: 1.2, p: PUSH_DOWN, e: "out" },
+    { t: 1.45, p: { cdy: 0.16, lu: 95, lf: 95, ru: 95, rf: 95 }, e: "in" }, { t: 1.7, p: {} }
+  ];
+  s.props.labels.push(lab(0.1, 0.95, "POP!", 1.3, 1.6, { accent: 1 }));
+  return s;
+})());
+
+A("double_broad", { view: "side", dur: 3.6, world: { x0: -2.1, x1: 2.3, y0: -0.1, y1: 2.1 },
+  kf: [
+    { t: 0, p: M(STAND, { x: -1.55, lfoot: -1.5, rfoot: -1.6 }) },
+    { t: 0.5, p: M(DIP_BACK, { x: -1.65, lfoot: -1.5, rfoot: -1.6, lu: -70, ru: -70 }), e: "out" },
+    { t: 0.72, p: M(NOIK, { x: -1.35, air: 0.08, t: 40, h: -20, lt: -20, ls: -20, rt: -20, rs: -20, lfa: 150, rfa: 150, lu: 150, lf: 160, ru: 150, rf: 160 }), e: "lin" },
+    { t: 0.95, p: M(NOIK, { x: -0.75, air: 0.35, t: 25, h: -15, lt: 70, ls: 5, rt: 70, rs: 5, lu: 110, lf: 120, ru: 110, rf: 120 }), e: "in" },
+    { t: 1.15, p: M(DIP_BACK, { x: -0.25, lfoot: -0.1, rfoot: -0.2, lu: -60, ru: -60 }), e: "out" },
+    { t: 1.37, p: M(NOIK, { x: 0.05, air: 0.08, t: 40, h: -20, lt: -20, ls: -20, rt: -20, rs: -20, lfa: 150, rfa: 150, lu: 150, lf: 160, ru: 150, rf: 160 }), e: "lin" },
+    { t: 1.6, p: M(NOIK, { x: 0.65, air: 0.4, t: 25, h: -15, lt: 70, ls: 5, rt: 70, rs: 5, lu: 110, lf: 120, ru: 110, rf: 120 }), e: "in" },
+    { t: 1.85, p: M(HALF, { x: 1.2, lfoot: 1.35, rfoot: 1.27, lu: 80, lf: 85, ru: 80, rf: 85 }) },
+    { t: 2.9, p: M(HALF, { x: 1.2, lfoot: 1.35, rfoot: 1.27, lu: 80, lf: 85, ru: 80, rf: 85 }) },
+    { t: 3.6, p: M(STAND, { x: 1.25, lfoot: 1.35, rfoot: 1.27 }) }
+  ],
+  props: { lines: [-1.42], labels: [lab(-0.8, 2.0, "JUMP · JUMP", 0.3, 1.7), lab(1.0, 2.0, "STICK IT", 1.85, 3.0, { accent: 1 })] } });
+
+A("depth_drop", { view: "side", dur: 2.8, world: { x0: -1.3, x1: 1.5, y0: -0.1, y1: 2.4 },
+  kf: [
+    { t: 0, p: M(STAND, { x: -0.55, py: 1.09, lfoot: -0.48, rfoot: -0.6, lfooty: 0.34, rfooty: 0.34 }) },
+    { t: 0.45, p: M(NOIK, { x: -0.35, air: 0.3, t: 6, lt: 40, ls: 0, rt: 0, rs: 0, lu: 20, lf: 30, ru: 20, rf: 30 }) },
+    { t: 0.7, p: M(NOIK, { x: 0.05, air: 0.14, t: 8, lt: 10, ls: 0, rt: 10, rs: 0, lfa: 140, rfa: 140, lu: 40, lf: 50, ru: 40, rf: 50 }), e: "in" },
+    { t: 0.9, p: M(HALF, { x: 0.25, lfoot: 0.38, rfoot: 0.25, lu: 70, lf: 80, ru: 70, rf: 80 }) },
+    { t: 2.1, p: M(HALF, { x: 0.25, lfoot: 0.38, rfoot: 0.25, lu: 70, lf: 80, ru: 70, rf: 80 }) },
+    { t: 2.8, p: M(STAND, { x: 0.3, lfoot: 0.38, rfoot: 0.25 }) }
+  ],
+  props: { box: { x: -0.85, w: 0.6, h: 0.3 }, labels: [lab(0, 2.25, "STEP OFF", 0.2, 0.8), lab(0, 2.25, "LAND QUIET · HOLD 2 s", 0.9, 2.2, { accent: 1 })] } });
+
 // ================= name → animation =================
 const BY_NAME = {
   "W1 Fingertip Taps": "h_fingertip", "W2 Around the World": "h_around_world", "W3 Figure 8 Wraps": "h_fig8_wraps", "W4 Drop & Catch": "h_drop_catch",
@@ -963,7 +1248,24 @@ const BY_NAME = {
   "CHALLENGE · Beat the Pro": "beat_pro", "1-2 step catch & shoot": "one_two_step", "Corner shots": "corner", "Elbow jumpers": "elbows",
   "CHALLENGE · Corner 60": "corner60", "Pass-fake pull-up": "passfake_pullup", "Rebound & outlet": "rebound_outlet",
   "Sprint-back jumpers": "sprint_back_jumper", "5-spot catch & shoot": "spots_mid", "5-spot threes": "spots_three",
-  "Shot fake, side-step": "shotfake_sidestep", "CHALLENGE · 5-Spot 25": "spots_25"
+  "Shot fake, side-step": "shotfake_sidestep", "CHALLENGE · 5-Spot 25": "spots_25",
+  // handles level 2
+  "01 Pound, eyes up · Right": "h_pound_eyes_R", "02 Pound, eyes up · Left": "h_pound_eyes_L",
+  "03 In & Out · Right": "h_inout_R", "04 In & Out · Left": "h_inout_L", "05 Low Crossover": "h_low_cross",
+  "06 Between the Legs": "h_between", "07 Behind the Back": "h_behind_back", "08 Double Crossover": "h_double_cross",
+  "09 Cross–Between–Behind, fast": "h_combo_fast",
+  // handles level 3
+  "01 Pound + Cross, eyes up": "h_pound_cross", "02 Zig-Zag Crossovers": "h_zigzag", "03 Hesitation & Go": "h_hesi",
+  "04 Retreat & Cross": "h_retreat", "05 Spin Move": "h_spin", "06 Combo into a Drive": "h_combo_drive",
+  // skills, levels 2 and 3
+  "Form shots, 5 spots": "spots_close5", "5-spot shots, mid": "spots_mid_both", "Reverse layups": "reverse_layup",
+  "Jab & go": "jab_go", "Crossover pull-up": "cross_pullup", "Crossover into layup": "cross_layup",
+  "Free throws after sprints": "free_throw", "Relocate corner shots": "relocate_corner", "Off-dribble elbow jumpers": "elbow_pullup",
+  "Floaters": "floater", "Shot fake, one-dribble pull-up": "shotfake_pullup", "Step-back jumper": "stepback",
+  "Corner threes": "corner_threes", "Relocation threes": "relocation_threes",
+  // strength & jumps
+  "Double broad jump": "double_broad", "Rear-foot elevated split squat": "rfe_split_squat", "Explosive push-ups": "explosive_pushup",
+  "Depth drop & stick": "depth_drop"
 };
 
 const mirrored = {};

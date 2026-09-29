@@ -1,25 +1,32 @@
-// Data layer: Google sign-in + Firestore (with offline cache) + family access approvals.
-// If firebase-config.js still has placeholders, runs in "demo mode" and keeps data on this device.
+// Data layer: Google sign-in, player profiles, daily logs and the leaderboard (Firestore, with offline cache).
+// If firebase-config.js still has placeholders, runs in "demo mode" and keeps everything on this device.
 import {
   initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
   onAuthStateChanged, signOut, setPersistence, browserLocalPersistence,
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDocs, setDoc, updateDoc, onSnapshot, query, where, orderBy, limit, writeBatch
 } from "./vendor/firebase.bundle.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { ADMIN_EMAILS } from "./access.js";
+import { keyOf, today, mondayKey } from "./stats.js";
 
 export const configured = !String(firebaseConfig.apiKey || "").startsWith("REPLACE");
 
-const listeners = { user: [], logs: [], status: [], access: [], members: [] };
+const listeners = { user: [], profile: [], logs: [], status: [] };
 export function on(evt, fn) { listeners[evt].push(fn); }
 function emit(evt, v) { listeners[evt].forEach((f) => { try { f(v); } catch (e) { console.error(e); } }); }
 
-let auth = null, db = null, currentUser = null;
+let auth = null, db = null, me = null;
 let unsubs = [];
+const cache = { pub: undefined, priv: undefined, logs: {}, logsReady: false };
 function clearSubs() { unsubs.forEach((u) => { try { u(); } catch (e) { /* ignore */ } }); unsubs = []; }
 
 function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+
+export const logsReady = () => cache.logsReady;
+export const currentPublic = () => cache.pub || null;
 
 function authMessage(e) {
   const c = (e && e.code) || "";
@@ -29,28 +36,39 @@ function authMessage(e) {
   return "Sign-in didn't work (" + (c || "unknown error") + "). Try again.";
 }
 
-function watchLogs() {
-  emit("status", { mode: "connecting" });
-  unsubs.push(onSnapshot(collection(db, "logs"), { includeMetadataChanges: true }, (snap) => {
-    const logs = {};
-    snap.forEach((d) => { logs[d.id] = d.data(); });
-    emit("logs", logs);
-    emit("status", { mode: snap.metadata.fromCache ? "offline" : "synced", pending: snap.metadata.hasPendingWrites });
-  }, (err) => {
-    emit("status", { mode: err.code === "permission-denied" ? "denied" : "error", message: err.message });
-  }));
+function emitProfile() {
+  if (cache.pub === undefined || cache.priv === undefined) { emit("profile", { state: "loading" }); return; }
+  if (!cache.pub) { emit("profile", { state: "none", viewer: isViewer() }); return; }
+  emit("profile", { state: "ready", pub: cache.pub, priv: cache.priv || {} });
 }
 
+/* ---------------- viewer mode (parents / coaches without a player card) ---------------- */
+const viewerKey = () => "sc.viewer." + (me ? me.uid : "x");
+export function isViewer() { return !!lsGet(viewerKey(), false); }
+export function setViewer(on) { if (on) lsSet(viewerKey(), true); else lsDel(viewerKey()); emitProfile(); }
+
+/* ---------------- demo mode ---------------- */
+const DEMO_BOARD = [
+  { uid: "s1", nickname: "Sample Rocket", avatar: "eagle", group: "12-15", xp: 2140, weekXp: 310, days: 27, streak: 6, bestStreak: 11 },
+  { uid: "s2", nickname: "Sample Mika", avatar: "koala", group: "10-11", xp: 1880, weekXp: 355, days: 24, streak: 9, bestStreak: 9 },
+  { uid: "s3", nickname: "Sample Bima", avatar: "tiger", group: "12-15", xp: 960, weekXp: 120, days: 13, streak: 0, bestStreak: 5 },
+  { uid: "s4", nickname: "Sample Lala", avatar: "penguin", group: "10-11", xp: 420, weekXp: 180, days: 6, streak: 3, bestStreak: 3 }
+];
+function demoStart() {
+  me = { demo: true, admin: true, name: "Demo mode", email: "", uid: "demo" };
+  emit("status", { mode: "demo" });
+  emit("user", me);
+  const saved = lsGet("sc.demo.profile", null);
+  cache.pub = saved ? saved.pub : null; cache.priv = saved ? saved.priv : null;
+  cache.logs = lsGet("sc.demo.logs", {}); cache.logsReady = true;
+  emitProfile();
+  emit("logs", cache.logs);
+}
+function demoSaveProfile() { lsSet("sc.demo.profile", cache.pub ? { pub: cache.pub, priv: cache.priv } : null); }
+
+/* ---------------- start ---------------- */
 export function start() {
-  if (!configured) {
-    emit("status", { mode: "demo" });
-    currentUser = { demo: true, admin: true, name: "Demo mode", email: "", uid: "demo" };
-    emit("user", currentUser);
-    emit("access", { state: "approved", player: null });
-    emit("logs", lsGet("sc.demo.logs", {}));
-    emit("members", []);
-    return;
-  }
+  if (!configured) { demoStart(); return; }
   const app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   setPersistence(auth, browserLocalPersistence).catch(() => {});
@@ -62,41 +80,28 @@ export function start() {
   getRedirectResult(auth).catch((e) => emit("status", { mode: "error", message: authMessage(e) }));
   onAuthStateChanged(auth, (u) => {
     clearSubs();
-    if (!u) { currentUser = null; emit("user", null); emit("logs", {}); return; }
+    cache.pub = undefined; cache.priv = undefined; cache.logs = {}; cache.logsReady = false;
+    if (!u) { me = null; emit("user", null); return; }
     const email = (u.email || "").toLowerCase();
-    const admin = ADMIN_EMAILS.includes(email);
-    currentUser = { name: u.displayName || u.email, email: u.email, uid: u.uid, photo: u.photoURL, admin };
-    emit("user", currentUser);
-    if (admin) {
-      emit("access", { state: "approved", player: null });
-      watchLogs();
-      unsubs.push(onSnapshot(collection(db, "members"), (snap) => {
-        const list = [];
-        snap.forEach((d) => list.push(Object.assign({ uid: d.id }, d.data())));
-        emit("members", list);
-      }, () => emit("members", [])));
-      return;
-    }
-    // Family member: own access doc decides what they can see.
-    let logsOn = false, filing = false;
-    emit("access", { state: "checking" });
-    unsubs.push(onSnapshot(doc(db, "members", u.uid), (snap) => {
-      if (!snap.exists()) {
-        if (filing) return;
-        filing = true;
-        setDoc(doc(db, "members", u.uid), { email: u.email || "", name: u.displayName || "", approved: false, player: null, requestedAt: Date.now() })
-          .catch((e) => emit("status", { mode: "error", message: e.message }));
-        emit("access", { state: "pending" });
-        return;
-      }
-      const m = snap.data();
-      if (m.approved) {
-        emit("access", { state: "approved", player: m.player || null });
-        if (!logsOn) { logsOn = true; watchLogs(); }
-      } else {
-        emit("access", { state: "pending" });
-      }
-    }, (err) => emit("access", { state: "error", message: err.message })));
+    me = { name: u.displayName || u.email, email: u.email, uid: u.uid, admin: ADMIN_EMAILS.includes(email) };
+    emit("user", me);
+    emitProfile();
+    emit("status", { mode: "connecting" });
+    unsubs.push(onSnapshot(doc(db, "players", u.uid), { includeMetadataChanges: true }, (snap) => {
+      cache.pub = snap.exists() ? Object.assign({ uid: u.uid }, snap.data()) : null;
+      emitProfile();
+      emit("status", { mode: snap.metadata.fromCache ? "offline" : "synced", pending: snap.metadata.hasPendingWrites });
+    }, (err) => { emit("status", { mode: "error", message: err.message }); emit("profile", { state: "error", message: err.message }); }));
+    unsubs.push(onSnapshot(doc(db, "users", u.uid), (snap) => {
+      cache.priv = snap.exists() ? snap.data() : null;
+      emitProfile();
+    }, (err) => { emit("profile", { state: "error", message: err.message }); }));
+    unsubs.push(onSnapshot(query(collection(db, "logs"), where("uid", "==", u.uid)), (snap) => {
+      const logs = {};
+      snap.forEach((d) => { logs[d.id] = d.data(); });
+      cache.logs = logs; cache.logsReady = true;
+      emit("logs", logs);
+    }, (err) => emit("status", { mode: "error", message: err.message })));
   });
 }
 
@@ -113,34 +118,85 @@ export async function signIn() {
     throw new Error(authMessage(e));
   }
 }
-
 export function signOutUser() {
   if (!configured) return Promise.resolve();
   clearSubs();
   return signOut(auth);
 }
 
-export function approveMember(uid, player) {
-  if (!configured) return Promise.resolve();
-  return updateDoc(doc(db, "members", uid), { approved: true, player: player || null });
-}
-export function removeMember(uid) {
-  if (!configured) return Promise.resolve();
-  return deleteDoc(doc(db, "members", uid));
+/* ---------------- profile ---------------- */
+const now = () => Date.now();
+export const EMPTY_STATS = { xp: 0, dayXp: 0, lastDate: "", weekXp: 0, weekKey: "", days: 0, streak: 0, bestStreak: 0, lastDone: "" };
+
+export async function createProfile({ nickname, age, avatar, group }) {
+  const pub = Object.assign({ nickname, avatar, group, hidden: false, createdAt: now(), updatedAt: now() }, EMPTY_STATS);
+  const priv = { age, consent: true, createdAt: now() };
+  if (!configured) {
+    cache.pub = Object.assign({ uid: "demo" }, pub); cache.priv = priv; demoSaveProfile(); setViewer(false); emitProfile(); return;
+  }
+  const b = writeBatch(db);
+  b.set(doc(db, "players", me.uid), pub);
+  b.set(doc(db, "users", me.uid), priv);
+  lsDel(viewerKey());
+  await b.commit();
 }
 
-export function saveLog(log) {
-  const id = log.player + "_" + log.date;
-  const clean = {
-    player: log.player, date: log.date, mode: log.mode, blocks: log.blocks || {},
-    score: log.score || null, tests: log.tests || {}, complete: !!log.complete,
-    updatedAt: Date.now(), updatedBy: currentUser ? currentUser.uid : ""
-  };
+export async function updateProfile({ nickname, age, avatar, group }) {
   if (!configured) {
-    const all = lsGet("sc.demo.logs", {});
-    all[id] = clean; lsSet("sc.demo.logs", all);
-    emit("logs", all);
+    Object.assign(cache.pub, { nickname, avatar, group, updatedAt: now() }); cache.priv = Object.assign({}, cache.priv, { age });
+    demoSaveProfile(); emitProfile(); return;
+  }
+  const b = writeBatch(db);
+  b.update(doc(db, "players", me.uid), { nickname, avatar, group, updatedAt: now() });
+  b.update(doc(db, "users", me.uid), { age });
+  await b.commit();
+}
+
+/* ---------------- daily log + public stats (one atomic write) ---------------- */
+export function saveDay(log, stats) {
+  const id = log.uid + "_" + log.date;
+  if (!configured) {
+    cache.logs = Object.assign({}, cache.logs, { [id]: log }); lsSet("sc.demo.logs", cache.logs);
+    if (stats) { Object.assign(cache.pub, stats); demoSaveProfile(); }
+    emit("logs", cache.logs); if (stats) emitProfile();
     return Promise.resolve();
   }
-  return setDoc(doc(db, "logs", id), clean);
+  // Two separate writes: the log always saves, even if the public stats are refused.
+  if (stats) updateDoc(doc(db, "players", me.uid), stats).catch((e) => console.warn("stats not saved", e));
+  return setDoc(doc(db, "logs", id), log);
+}
+
+/* ---------------- leaderboard ---------------- */
+export async function fetchBoard(kind) {
+  if (!configured) {
+    const k = keyOf(today());
+    const list = DEMO_BOARD.map((p) => Object.assign({ weekKey: mondayKey(k), lastDone: k }, p));
+    if (cache.pub) list.push(Object.assign({}, cache.pub, { uid: "demo" }));
+    return list;
+  }
+  const field = kind === "week" ? "weekXp" : "xp";
+  const snap = await getDocs(query(collection(db, "players"), orderBy(field, "desc"), limit(200)));
+  return snap.docs.map((d) => Object.assign({ uid: d.id }, d.data()));
+}
+export function setHidden(uid, hidden) {
+  if (!configured) return Promise.resolve();
+  return updateDoc(doc(db, "players", uid), { hidden: !!hidden });
+}
+
+/* ---------------- delete everything for this account ---------------- */
+export async function deleteMyData() {
+  if (!configured) {
+    lsDel("sc.demo.profile"); lsDel("sc.demo.logs");
+    cache.pub = null; cache.priv = null; cache.logs = {}; emit("logs", {}); emitProfile(); return;
+  }
+  const ids = Object.keys(cache.logs);
+  for (let i = 0; i < ids.length; i += 400) {
+    const b = writeBatch(db);
+    ids.slice(i, i + 400).forEach((id) => b.delete(doc(db, "logs", id)));
+    await b.commit();
+  }
+  const b = writeBatch(db);
+  b.delete(doc(db, "players", me.uid));
+  b.delete(doc(db, "users", me.uid));
+  await b.commit();
 }
