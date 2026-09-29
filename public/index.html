@@ -3,25 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Streak Court</title>
-<meta name="description" content="A 67-day basketball training program for ages 10–15: guided timers, drill animations, streaks, fair XP and a leaderboard.">
+<title>67 Days Streak Court</title>
+<meta name="description" content="67 Days Streak Court: a 67-day basketball training program for ages 10–15, with guided timers, drill animations, streaks, fair XP and a leaderboard.">
 <meta name="theme-color" content="#15130F">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Streak Court">
+<meta name="apple-mobile-web-app-title" content="67 Streak">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><text id="t67" x="14" y="88"><tspan class="d6" rotate="-6">6</tspan><tspan class="d7" dx="-4" dy="7" rotate="9">7</tspan></text></defs>
+</svg>
 
 <section class="gate" id="gate">
   <div class="gate-card">
-    <svg viewBox="0 0 32 32" width="56" height="56" aria-hidden="true"><circle cx="16" cy="16" r="14" style="fill:var(--accent)"/><path d="M2 16h28M16 2v28M6.5 6.5c4.5 4 4.5 15 0 19M25.5 6.5c-4.5 4-4.5 15 0 19" fill="none" style="stroke:var(--bg)" stroke-width="1.8"/></svg>
-    <h1>STREAK COURT</h1>
+    <h1 class="wm wm-lg"><span class="sr">67 Days Streak Court</span><svg class="n67" viewBox="0 0 150 116" aria-hidden="true"><g transform="rotate(-6 75 58)"><use href="#t67" class="sh" transform="translate(5 6)"/><use href="#t67" class="edge"/><use href="#t67" class="line"/><use href="#t67" class="fill"/></g></svg><span class="wm-text" aria-hidden="true"><span class="wm-days">DAYS</span><span class="wm-name">STREAK COURT</span></span></h1>
     <p id="gate-text">Loading…</p>
     <button type="button" class="gbtn" id="signin" hidden><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.7-4.2-13.6-9.9l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>Sign in with Google</button>
     <button type="button" class="linkbtn" id="gate-signout" hidden>Use another account</button>
@@ -31,10 +33,7 @@
 
 <section class="onboard" id="onboard" hidden aria-labelledby="ob-h">
   <div class="ob-card">
-    <div class="ob-head">
-      <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><circle cx="16" cy="16" r="14" style="fill:var(--accent)"/><path d="M2 16h28M16 2v28M6.5 6.5c4.5 4 4.5 15 0 19M25.5 6.5c-4.5 4-4.5 15 0 19" fill="none" style="stroke:var(--bg)" stroke-width="1.8"/></svg>
-      <span>STREAK COURT</span>
-    </div>
+    <div class="wm wm-md"><span class="sr">67 Days Streak Court</span><svg class="n67" viewBox="0 0 150 116" aria-hidden="true"><g transform="rotate(-6 75 58)"><use href="#t67" class="sh" transform="translate(5 6)"/><use href="#t67" class="edge"/><use href="#t67" class="line"/><use href="#t67" class="fill"/></g></svg><span class="wm-text" aria-hidden="true"><span class="wm-days">DAYS</span><span class="wm-name">STREAK COURT</span></span></div>
     <h2 id="ob-h">Make your player card</h2>
     <p class="ob-sub">67 days of training, built for your age. Everyone earns points by the same rules.</p>
     <p class="small" id="ob-email"></p>
@@ -48,10 +47,7 @@
 
 <div class="wrap" id="app" hidden>
   <header class="top">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" style="fill:var(--accent)"/><path d="M2 16h28M16 2v28M6.5 6.5c4.5 4 4.5 15 0 19M25.5 6.5c-4.5 4-4.5 15 0 19" fill="none" style="stroke:var(--bg)" stroke-width="1.8"/></svg>
-      <h1>STREAK COURT</h1>
-    </div>
+    <h1 class="wm wm-sm"><span class="sr">67 Days Streak Court</span><svg class="n67" viewBox="0 0 150 116" aria-hidden="true"><g transform="rotate(-6 75 58)"><use href="#t67" class="sh" transform="translate(5 6)"/><use href="#t67" class="edge"/><use href="#t67" class="line"/><use href="#t67" class="fill"/></g></svg><span class="wm-text" aria-hidden="true"><span class="wm-days">DAYS</span><span class="wm-name">STREAK COURT</span></span></h1>
     <div class="top-right">
       <span class="chip" id="sync">Connecting…</span>
       <button class="icon-btn" id="soundBtn" type="button" aria-pressed="true">Sound on</button>

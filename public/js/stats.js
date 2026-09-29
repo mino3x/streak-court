@@ -1,6 +1,6 @@
 // Pure helpers for dates, streaks and the public stats kept on each player card.
 // The update rules here mirror the checks in firestore.rules, so keep both in sync.
-import { WEEK_MAX } from "./program.js";
+import { WEEK_MAX, BONUS_XP } from "./program.js";
 
 export const pad = (n) => String(n).padStart(2, "0");
 export const keyOf = (d) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
@@ -65,4 +65,36 @@ export function nextStats(prev, { date, dayXp, dayDone, logsAfter }) {
   const earlier = doneDates(logsAfter).filter((d) => d < date);
   const lastDone = dayDone ? date : earlier.length ? earlier[earlier.length - 1] : "";
   return { xp, dayXp, dayDone: !!dayDone, lastDate: date, weekXp, weekKey: wk, days, streak, bestStreak, lastDone, updatedAt: Date.now() };
+}
+
+// Weekly bonus: exercises done this Monday–Sunday week (each counts once).
+export function weekBonus(p, todayKey) {
+  const done = p && p.bonusWeek === mondayKey(todayKey) && p.bonus ? p.bonus : {};
+  const count = Object.keys(done).length;
+  return { done, count, xp: count * BONUS_XP };
+}
+// Change to the player card when a bonus exercise is ticked on or off. Mirrors bonus checks in firestore.rules.
+export function nextBonus(prev, { date, id, on }) {
+  if (!prev) return null;
+  const wk = mondayKey(date), old = prev.bonusWeek || "";
+  if (old && old > wk) return null;
+  const same = old === wk;
+  const before = same ? Object.assign({}, prev.bonus || {}) : {};
+  const after = Object.assign({}, before);
+  if (on) after[id] = true; else delete after[id];
+  const oldCount = same ? Object.keys(prev.bonus || {}).length : 0;
+  const bonusXp = Math.max(0, (prev.bonusXp || 0) + BONUS_XP * (Object.keys(after).length - oldCount));
+  return { bonusWeek: wk, bonus: after, bonusXp, updatedAt: Date.now() };
+}
+export const totalXp = (p) => ((p && p.xp) || 0) + ((p && p.bonusXp) || 0);
+
+/* ---------------- payloads written to Firestore (shared with tests/rules.test.mjs) ---------------- */
+export const EMPTY_STATS = { xp: 0, dayXp: 0, dayDone: false, lastDate: "", weekXp: 0, weekKey: "", days: 0, streak: 0, bestStreak: 0, lastDone: "",
+  bonusWeek: "", bonus: {}, bonusXp: 0 };
+export function newCard({ nickname, avatar, group }, now) {
+  return Object.assign({ nickname, avatar, group, hidden: false, createdAt: now, updatedAt: now }, JSON.parse(JSON.stringify(EMPTY_STATS)));
+}
+export const privateDetails = (age, now) => ({ age, consent: true, createdAt: now });
+export function newLog({ uid, date, day, group, mode }) {
+  return { uid, date, day, group, mode: mode === "lite" ? "lite" : "full", blocks: {}, score: null, tests: {}, complete: false, xp: 0, parts: {}, updatedAt: 0 };
 }

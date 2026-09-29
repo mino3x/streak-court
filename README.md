@@ -1,4 +1,4 @@
-# Streak Court
+# 67 Days Streak Court
 
 Program latihan basket **67 hari** untuk anak **usia 10–15 tahun**. Siapa pun bisa masuk dengan akun Google, membuat kartu pemain (nama panggilan, usia, avatar), lalu berlatih setiap hari dengan timer, animasi gerakan, dan video demo. Hasil latihan masuk ke **leaderboard** dengan sistem poin yang sama untuk semua usia.
 
@@ -12,6 +12,8 @@ Alamat aplikasi: **https://streak-court.web.app**
 - **Siklus 5 sesi**: speed, lompat, defense, first step, lalu hari tes (setiap hari ke-5).
 - **Setiap sesi**: fisik ±20 menit (warm-up 5, atletik 7–8, kekuatan 7), handles 7 menit, basket 10 menit dengan challenge berskor.
 - **Streak**: hari kerja berturut-turut dengan sesi selesai. Akhir pekan tidak memutus streak. Maksimal 5 sesi per minggu; sesi pengganti (make-up) boleh di akhir pekan.
+- **Peta 67 hari** (tab Program): hari yang selesai diberi centang hijau, hari berikutnya terbuka, hari-hari setelahnya terkunci sampai hari sebelumnya selesai. Coach view bisa membuka semua hari.
+- **Weekly bonus** (tab Today): push-up, sit-up, plank, glute bridge, kayang, cium lutut, butterfly stretch, dan lunge hip stretch. Boleh dikerjakan hari apa saja, termasuk hari istirahat. Masing-masing dihitung sekali per minggu.
 
 ## Poin (XP) yang adil
 
@@ -23,6 +25,7 @@ Aturan sama untuk semua pemain, maksimal **100 XP per hari**:
 | Challenge | sampai 30 = skor ÷ target usia (maks 100%) |
 | Rekor pribadi baru (challenge atau tes) | +10 |
 | Bonus streak | +1 per hari streak, maks +10 |
+| Weekly bonus (di luar batas 100/hari) | +10 per latihan bonus, sekali seminggu, maks +80 |
 
 Target challenge per usia ada di `public/js/scoring.js` (`TARGETS`). Anak 10 tahun yang mencapai targetnya mendapat poin yang sama dengan anak 15 tahun yang mencapai targetnya. Leaderboard punya tab **This week** (reset setiap Senin) dan **All time**, plus filter usia.
 

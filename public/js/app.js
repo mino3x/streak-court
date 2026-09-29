@@ -1,10 +1,10 @@
-import { CHALLENGES, TESTS, PROGRAM_DAYS, WEEK_MAX, PHASES, GROUPS, AGES, groupForAge, sessionFor, phaseOf, isTestDay, BADGES, MILESTONES } from "./program.js";
+import { CHALLENGES, TESTS, PROGRAM_DAYS, WEEK_MAX, PHASES, GROUPS, AGES, groupForAge, sessionFor, phaseOf, isTestDay, BADGES, MILESTONES, BONUS, BONUS_XP, BONUS_MAX } from "./program.js";
 import { animFor } from "./drills.js";
 import { Player } from "./anim.js";
 import { videoFor, embedUrl, watchUrl } from "./videos.js";
 import { dayXp, targetFor, XP_RULES, TARGETS, fmtXp } from "./scoring.js";
 import { AVATARS, avatarHtml, nicknameProblem, cleanNickname } from "./avatars.js";
-import { keyOf, addDays, isWeekday, today, mondayOf, currentStreak, longestStreak, sessionsBefore, weekCount, liveStreak, liveWeekXp, nextStats } from "./stats.js";
+import { keyOf, addDays, isWeekday, today, mondayOf, currentStreak, longestStreak, sessionsBefore, weekCount, liveStreak, liveWeekXp, nextStats, newLog, weekBonus, nextBonus, totalXp } from "./stats.js";
 import * as store from "./store.js";
 
 const $ = (id) => document.getElementById(id);
@@ -110,7 +110,7 @@ function updateToday(fn) {
   const P = pub(); if (!P) return null;
   const date = tk(), id = idFor(date), cur = logs[id];
   const s = todaySession();
-  const l = cur ? JSON.parse(JSON.stringify(cur)) : { uid: P.uid, date, day: s.n, group: P.group, mode: state.modePref, blocks: {}, score: null, tests: {}, complete: false, xp: 0, parts: {} };
+  const l = cur ? JSON.parse(JSON.stringify(cur)) : newLog({ uid: P.uid, date, day: s.n, group: P.group, mode: state.modePref });
   fn(l);
   l.group = P.group;
   l.complete = isComplete(l);
@@ -137,7 +137,8 @@ const ICON = {
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>',
   badge: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="3"/><path d="M9 20h30M24 5v30M14 9c4 4 4 18 0 22M34 9c-4 4-4 18 0 22" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 33l-3 12 11-5 11 5-3-12" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>',
   cap: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z" fill="currentColor"/><path d="M6 11.5V16c3 2.5 9 2.5 12 0v-4.5l-6 3z" fill="currentColor"/></svg>',
-  refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>'
 };
 function arrowSvg(dir) {
   const rot = dir === "left" ? 180 : dir === "up" ? -90 : 0;
@@ -194,7 +195,7 @@ function renderHero() {
   const ts = trainState(), tl = todayLog();
   const sub = tl && tl.complete ? "Today is done. See you tomorrow." : ts.reason === "week" ? "5 sessions this week. Rest up." : ts.reason === "weekend" ? "Weekend rest. The streak waits for Monday." : cur > 0 ? "Train today to keep it alive." : "Finish today's session to start one.";
   $("hero").innerHTML =
-    '<div class="streak"><div class="streak-num">' + ICON.flame + '<b>' + cur + '</b></div><div><div class="streak-lbl">Day streak</div><div class="streak-sub">Best ' + lon + ' · ' + fmtXp(P.xp) + ' XP</div></div></div>' +
+    '<div class="streak"><div class="streak-num">' + ICON.flame + '<b>' + cur + '</b></div><div><div class="streak-lbl">Day streak</div><div class="streak-sub">Best ' + lon + ' · ' + fmtXp(totalXp(P)) + ' XP</div></div></div>' +
     '<div class="hero-right"><div class="week" aria-label="This week">' + dots + '</div>' +
     '<div class="prog"><div class="nb-row"><span>' + progLbl + '</span><span>' + wk + '/' + WEEK_MAX + ' this week</span></div><div class="phasebar" aria-hidden="true">' + seg + '</div></div>' +
     '<div class="streak-sub">' + sub + '</div></div>';
@@ -242,6 +243,7 @@ function viewToday() {
   }
   if (daysDone() >= PROGRAM_DAYS && !(log && log.complete)) html += '<div class="note"><b>You finished the 67-day program.</b> Keep going with bonus days: they repeat the Game Speed phase, and your streak and XP keep counting.</div>';
   html += '</div>';
+  if (!counting) html += bonusCard();
   const full = blocksFor(s, "full").reduce((a, x) => a + blockSecs(x), 0), lite = blocksFor(s, "lite").reduce((a, x) => a + blockSecs(x), 0);
   html += '<div class="mode" role="group" aria-label="Session length">' +
     '<button type="button" data-mode="full" aria-pressed="' + (mode === "full") + '"' + (counting ? '' : ' disabled') + '><b>Full session</b><small>' + fmtMin(full) + '</small></button>' +
@@ -259,10 +261,37 @@ function viewToday() {
       stepperHtml("score-today", curScore, C.max) + ' <span class="unit">' + esc(C.unit) + '</span> <button type="button" class="save" data-savescore="' + s.ch + '">Save score</button></div>' +
       '<div class="pbline">Personal best: <b>' + (pb === null ? '—' : pb + ' ' + esc(C.unit)) + '</b>' + (curScore !== "" ? ' · Today: <b>' + curScore + '</b>' : '') + '</div></section>';
     if (s.test && mode === "full") html += testsCard(log);
+    html += bonusCard();
   } else {
     html += '<section class="card"><h3>Challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + ' Full points at ' + target + ' ' + esc(C.unit) + '.</p></section>';
   }
   return html;
+}
+function bonusCard(readonly) {
+  const wb = weekBonus(pub(), tk());
+  const rows = BONUS[myGroup()].map((it) => {
+    const done = !!wb.done[it.id];
+    const canPrev = !!animFor(it.L ? it.n + " · Left" : it.n);
+    return '<li class="brow2' + (done ? ' done' : '') + '">' +
+      (readonly ? '<span class="check ghostcheck" aria-hidden="true"></span>' : '<button type="button" class="check" data-bonus="' + it.id + '" aria-pressed="' + done + '" aria-label="' + (done ? 'Undo ' : 'Mark done: ') + esc(it.n) + '">' + ICON.check + '</button>') +
+      '<span class="bn">' + (canPrev ? '<button type="button" class="bn-link" data-bpreview="' + it.id + '" aria-label="Show how to do ' + esc(it.n) + '"><b>' + esc(it.n) + '</b><span class="pvi">' + ICON.play + '</span></button>' : '<b>' + esc(it.n) + '</b>') +
+      '<small>' + esc(it.kind) + ' · ' + itemTime(it) + (it.r ? ' · rest ' + it.r + ' s' : '') + (done ? ' · <em>+' + BONUS_XP + ' XP</em>' : '') + '</small></span>' +
+      '<button type="button" class="start" data-bstart="' + it.id + '">' + ICON.play + (readonly ? 'Try' : done ? 'Again' : 'Start') + '</button>' +
+      '<span class="ic">' + esc(it.c) + '</span></li>';
+  }).join("");
+  return '<section class="card bonuscard" aria-labelledby="bonus-h"><div class="bonus-top"><h3 id="bonus-h">Weekly bonus</h3>' + (readonly ? '' : '<span class="chip accent">+' + wb.xp + ' / ' + BONUS_MAX + ' XP</span>') + '</div>' +
+    '<p>Extra strength and stretching for any day, even rest days. Each exercise gives +' + BONUS_XP + ' XP once a week. Resets every Monday.</p>' +
+    (readonly ? '' : '<div class="bar" aria-hidden="true"><i style="width:' + Math.round(wb.xp / BONUS_MAX * 100) + '%"></i></div>') + '<ul class="bonus-list">' + rows + '</ul></section>';
+}
+function setBonus(id, on) {
+  const P = pub(); if (!P) return;
+  if (!!weekBonus(P, tk()).done[id] === on) return;
+  const patch = nextBonus(P, { date: tk(), id, on });
+  if (!patch) { toast("Check the date and time on this phone."); return; }
+  Object.assign(P, patch);
+  if ($("timer").hidden) render(); else renderHero();
+  store.saveBonus(patch).catch((e) => { console.error(e); toast("Couldn't save. Check your connection and try again."); });
+  if (on) { toast("Weekly bonus: +" + BONUS_XP + " XP"); chime([880, 1320]); }
 }
 function xpCard(log, mode) {
   const p = (log && log.parts) || { blocks: 0, challenge: 0, pb: 0, streak: 0 };
@@ -283,29 +312,44 @@ function testsCard(log) {
 }
 
 /* ---------------- Program map ---------------- */
+// Players unlock days one at a time: finished days get a tick, the next day is open, later days are locked.
+// Coach view (no player card) can open every day.
+function mapState() {
+  const player = isPlayer(), done = player ? daysDone() : 0;
+  const next = Math.min(PROGRAM_DAYS, done + 1);
+  return { player, done, next, unlocked: (d) => !player || d <= done + 1 };
+}
 function viewProgram() {
-  const g = myGroup(), n = isPlayer() ? todayN() : 0;
-  const doneDays = isPlayer() ? daysDone() : 0;
-  if (!state.mapDay) state.mapDay = isPlayer() ? Math.min(n, PROGRAM_DAYS) : 1;
+  const g = myGroup(), M = mapState(), n = M.player ? todayN() : 0;
+  if (!state.mapDay || !M.unlocked(state.mapDay)) state.mapDay = M.player ? M.next : 1;
   const sel = state.mapDay;
   let html = '<div class="phases">' + PHASES.map((ph) => {
-    const cur = isPlayer() && n >= ph.from && n <= ph.to;
+    const cur = M.player && n >= ph.from && n <= ph.to;
     return '<div class="phase p' + ph.id + (cur ? ' cur' : '') + '"><div class="ph-top"><b>' + esc(ph.name) + '</b><span>Days ' + ph.from + '–' + ph.to + '</span></div><p>' + esc(ph.goal) + '</p></div>';
   }).join("") + '</div>';
-  html += '<h3 class="sec-h">67-day map · ' + esc(GROUPS[g].label) + '</h3><p class="small">Tap a day to see its plan. Every fifth day is a test day.</p><div class="map" role="group" aria-label="Program days">';
+  html += '<h3 class="sec-h">67-day map · ' + esc(GROUPS[g].label) + '</h3><p class="small">' +
+    (M.player ? 'Finish a day to unlock the next one. Tap an open day to see its plan.' : 'Coach view: every day is open. Players unlock days one at a time.') + '</p><div class="map" role="group" aria-label="Program days">';
   for (let d = 1; d <= PROGRAM_DAYS; d++) {
     const ph = phaseOf(d), cls = ["cell", "p" + ph.id];
-    if (d <= doneDays) cls.push("done");
-    if (isPlayer() && d === n) cls.push("cur");
+    const done = M.player && d <= M.done, locked = !M.unlocked(d), next = M.player && d === M.next && !done;
+    if (done) cls.push("done"); else if (locked) cls.push("locked");
+    if (next) cls.push("cur");
     if (isTestDay(d)) cls.push("test");
-    html += '<button type="button" class="' + cls.join(" ") + '" data-mapday="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="Day ' + d + (d <= doneDays ? ', done' : '') + (isTestDay(d) ? ', test day' : '') + '">' + d + '</button>';
+    const label = 'Day ' + d + (done ? ', done' : locked ? ', locked' : next ? ', next' : '') + (isTestDay(d) ? ', test day' : '');
+    html += '<button type="button" class="' + cls.join(" ") + '" data-mapday="' + d + '"' + (locked ? ' data-locked="1" aria-disabled="true"' : '') + ' aria-pressed="' + (d === sel) + '" aria-label="' + label + '">' +
+      '<span class="num">' + d + '</span>' + (done ? '<span class="cbadge ok" aria-hidden="true">' + ICON.check + '</span>' : locked ? '<span class="cbadge lock" aria-hidden="true">' + ICON.lock + '</span>' : '') + '</button>';
   }
   html += '</div>';
-  const s = sessionFor(g, sel);
+  if (M.player) html += '<div class="maplegend" aria-hidden="true"><span><i class="lg ok">' + ICON.check + '</i>Done</span><span><i class="lg next"></i>Next</span><span><i class="lg lock">' + ICON.lock + '</i>Locked</span><span><i class="lg test"></i>Test day</span></div>';
+  const s = sessionFor(g, sel), tl = todayLog();
+  let note = 'Preview: timers run, but nothing is saved.';
+  if (M.player && sel <= M.done) note = 'Day ' + sel + ' is done. You can look back at it any time; timers here don\'t save.';
+  else if (M.player && sel === M.next) note = tl && tl.complete ? 'Your next session. It opens on the Today tab on your next training day.' : 'This is your next session. Train it from the Today tab.';
   html += '<section class="mapday" aria-live="polite">' + sessionHead(s) +
-    '<p class="small">' + (isPlayer() && sel === n ? 'This is your next session. Train it from the Today tab.' : 'Preview: timers run, but nothing is saved.') + '</p>' +
+    '<p class="small">' + note + '</p>' +
     blocksHtml(s, "full", "map", null, false) +
     '<section class="card"><h3>Challenge · ' + esc(CHALLENGES[s.ch].label) + '</h3><p>' + esc(CHALLENGES[s.ch].how) + '</p></section></section>';
+  if (!M.player) html += bonusCard(true);
   html += '<section class="card"><h3>How a week works</h3><ul class="plain">' +
     '<li>Sessions run in a 5-day cycle: speed, jumps, defense, first step, then test day. Each session also has handles (7 min) and a basketball block with a scored challenge (10 min).</li>' +
     '<li>Physical work is about 20 minutes a day: warm-up 5, athletic 7–8, strength 7.</li>' +
@@ -333,7 +377,7 @@ function viewBoard() {
     '<div class="filters" role="group" aria-label="Age group">' + flt("all", "All ages") + flt("10-11", "10–11") + flt("12-15", "12–15") + '</div></div>';
   if (!c) return html + '<div class="card"><p>' + (B.error ? esc(B.error) : 'Loading the leaderboard…') + '</p>' + (B.error ? '<button type="button" class="btn" data-act="board-refresh">Try again</button>' : '') + '</div>' + fairCard();
   const t = tk(), me = myUid();
-  let rows = c.list.filter((p) => admin || !p.hidden || p.uid === me).map((p) => Object.assign({}, p, { score: B.kind === "week" ? liveWeekXp(p, t) : p.xp || 0, live: liveStreak(p, t) }));
+  let rows = c.list.filter((p) => admin || !p.hidden || p.uid === me).map((p) => Object.assign({}, p, { score: B.kind === "week" ? liveWeekXp(p, t) + weekBonus(p, t).xp : totalXp(p), live: liveStreak(p, t) }));
   if (B.filter !== "all") rows = rows.filter((p) => p.group === B.filter);
   if (B.kind === "week") rows = rows.filter((p) => p.score > 0 || p.uid === me);
   rows.sort((a, b) => b.score - a.score || b.live - a.live || (b.days || 0) - (a.days || 0) || String(a.nickname).localeCompare(String(b.nickname)));
@@ -358,7 +402,8 @@ function fairCard() {
     '<li>Challenge: up to <b>30 XP</b>, measured against the target for <b>your age</b>. Hit your target and you get the full 30, whether you are 10 or 15.</li>' +
     '<li>New personal best (challenge or test): <b>+10 XP</b>. Everyone can beat their own best.</li>' +
     '<li>Streak bonus: <b>+1 XP</b> per streak day, up to +10.</li>' +
-    '<li>Max <b>100 XP a day</b> and ' + WEEK_MAX + ' sessions a week, so extra sessions can\'t buy points. <b>This week</b> resets every Monday, so new players can win it too.</li></ul></section>';
+    '<li>Weekly bonus: <b>+' + BONUS_XP + ' XP</b> for each bonus exercise (push-ups, sit-ups, plank, kayang, stretches…), each once a week, up to +' + BONUS_MAX + '.</li>' +
+    '<li>Max <b>100 XP a day</b> from sessions and ' + WEEK_MAX + ' sessions a week, so extra sessions can\'t buy points. <b>This week</b> resets every Monday, so new players can win it too.</li></ul></section>';
 }
 
 /* ---------------- Progress ---------------- */
@@ -371,7 +416,7 @@ function spark(h) {
 }
 function viewProgress() {
   const P = pub(), cur = currentStreak(logs, tk()), lon = longestStreak(logs), done = daysDone();
-  let html = '<div class="statrow four"><div class="stat"><b>' + fmtXp(P.xp) + '</b><span>Total XP</span></div><div class="stat"><b>' + done + '</b><span>Days done</span></div><div class="stat"><b>' + cur + '</b><span>Streak</span></div><div class="stat"><b>' + lon + '</b><span>Best streak</span></div></div>';
+  let html = '<div class="statrow four"><div class="stat"><b>' + fmtXp(totalXp(P)) + '</b><span>Total XP</span></div><div class="stat"><b>' + done + '</b><span>Days done</span></div><div class="stat"><b>' + cur + '</b><span>Streak</span></div><div class="stat"><b>' + lon + '</b><span>Best streak</span></div></div>';
   html += '<h3 class="sec-h">Program milestones</h3><div class="badges">' + MILESTONES.map((m) => {
     const got = done >= m.n;
     return '<div class="badge' + (got ? ' earned' : '') + '">' + (m.n === PROGRAM_DAYS ? ICON.cap : ICON.badge) + '<b>' + m.n + '</b><span>' + esc(m.label) + '</span><span class="small">' + (got ? 'Unlocked' : 'Day ' + m.n) + '</span></div>';
@@ -405,10 +450,11 @@ function viewGuide() {
     '<li><b>Your streak</b> counts weekdays in a row with a finished session. Weekends never break it. Miss a weekday and it starts again; your best streak is kept.</li>' +
     '<li>Finish every block of today\'s session (tick it, or run its timer to the end). Team practice or a game? Switch to <b>Team practice day</b>: warm-up, handles and the challenge. It still counts.</li>' +
     '<li>Up to ' + WEEK_MAX + ' sessions a week. On weekends you can do a make-up session if you missed one.</li>' +
+    '<li><b>Weekly bonus</b> (on the Today tab): push-ups, sit-ups, plank, glute bridge, kayang, cium lutut and more stretches. Do them any day, even on rest days. Each one gives +' + BONUS_XP + ' XP once a week.</li>' +
     '<li>Tap ▶ next to any drill to see how it\'s done. During a timer, the animation shows the current drill and <b>Real demo</b> opens a video.</li>' +
   '</ul></section>' +
   '<section class="card"><h3>Fair points</h3><p>Everyone earns XP by the same rules (max 100 a day). Challenge points compare you with the target for your age, so younger players can top the board too.</p>' +
-    '<ul><li>Finished block: 10 XP each.</li><li>Challenge: up to 30 XP. Your score ÷ your age target, capped at 100%.</li><li>New personal best: +10 XP.</li><li>Streak bonus: +1 per day, up to +10.</li></ul>' +
+    '<ul><li>Finished block: 10 XP each.</li><li>Challenge: up to 30 XP. Your score ÷ your age target, capped at 100%.</li><li>New personal best: +10 XP.</li><li>Streak bonus: +1 per day, up to +10.</li><li>Weekly bonus: +' + BONUS_XP + ' XP per bonus exercise, each once a week (up to +' + BONUS_MAX + ').</li></ul>' +
     '<p style="margin-top:10px"><b>Targets for ' + esc(GROUPS[myGroup()].label) + '</b> (score for full points)</p>' + targetsTable() + '</section>' +
   '<section class="card"><h3>What the 67 days build</h3><div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead><tr><th></th><th>Ages 10–11</th><th>Ages 12–15</th></tr></thead><tbody>' +
     '<tr><td>Focus</td><td>Skill window: coordination, balance, landing, lots of touches</td><td>Speed window: first step, stopping, single-leg strength</td></tr>' +
@@ -448,7 +494,7 @@ function profileForm(v, create) {
     '<span class="flabel">Age</span><div class="ages" role="group" aria-label="Age">' + ages + '</div>' +
     '<p class="fhint">Your program and your challenge targets are set by age.' + (v.age ? ' Program: <b>' + esc(GROUPS[groupForAge(v.age)].label) + '</b>.' : '') + '</p>' +
     '<span class="flabel">Avatar</span><div class="avgrid" role="group" aria-label="Avatar">' + avs + '</div>' +
-    (create ? '<label class="consent"><input type="checkbox" id="pf-consent"' + (v.consent ? ' checked' : '') + '> <span>A parent or guardian knows I\'m using Streak Court and says it\'s OK.</span></label>' : '') +
+    (create ? '<label class="consent"><input type="checkbox" id="pf-consent"' + (v.consent ? ' checked' : '') + '> <span>A parent or guardian knows I\'m using 67 Days Streak Court and says it\'s OK.</span></label>' : '') +
     '<p class="err" id="pf-err" role="alert"></p>' +
     '<button type="button" class="btn big" id="pf-save">' + (create ? 'Start Day 1' : 'Save changes') + '</button></div>';
 }
@@ -539,7 +585,12 @@ $("viewerbar").addEventListener("click", (e) => {
 });
 $("panel").addEventListener("click", (e) => {
   const t = e.target.closest("button"); if (!t) return;
-  if (t.dataset.mapday) { state.mapDay = +t.dataset.mapday; render(); const m = document.querySelector(".mapday"); if (m) m.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  if (t.dataset.mapday) {
+    if (t.dataset.locked) { toast("Day " + t.dataset.mapday + " is locked. Finish Day " + mapState().next + " first."); return; }
+    state.mapDay = +t.dataset.mapday; render();
+    const m = document.querySelector(".mapday"); if (m) m.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   if (t.dataset.mode) {
     state.modePref = t.dataset.mode;
     if (todayLog()) updateToday((l) => { l.mode = t.dataset.mode; }); else render();
@@ -559,7 +610,10 @@ $("panel").addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.act === "board-refresh") { loadBoard(true); render(); return; }
-  if (t.dataset.act === "makeup") { state.makeup = true; render(); }
+  if (t.dataset.act === "makeup") { state.makeup = true; render(); return; }
+  if (t.dataset.bonus) { setBonus(t.dataset.bonus, t.getAttribute("aria-pressed") !== "true"); return; }
+  if (t.dataset.bstart) { openTimer("bonus", "bonus:" + t.dataset.bstart); return; }
+  if (t.dataset.bpreview) { openPreview("bonus:" + t.dataset.bpreview, "bonus", 0); }
 });
 function stepInput(btn) {
   const inp = $(btn.dataset.for); if (!inp) return;
@@ -630,13 +684,21 @@ const T = { block: null, segs: [], i: 0, remain: 0, endAt: 0, running: false, iv
 const stagePlayer = new Player($("t-canvas"));
 function ctxSession(ctx) { return ctx === "map" ? sessionFor(myGroup(), state.mapDay || 1) : todaySession(); }
 function ctxMode(ctx) { if (ctx === "map") return "full"; const l = todayLog(); return l ? l.mode : state.modePref; }
+// A block to run or preview: a session block, or one weekly-bonus exercise ("bonus:<id>").
+function ctxBlock(blockId, ctx) {
+  if (ctx && ctx.indexOf("bonus:") === 0) {
+    const it = BONUS[myGroup()].find((b) => b.id === ctx.slice(6));
+    return it ? { id: "bonus", kind: "Weekly bonus", title: it.n, items: [it], bonusId: it.id } : null;
+  }
+  return blocksFor(ctxSession(ctx), ctxMode(ctx)).find((b) => b.id === blockId) || null;
+}
 
 function openTimer(blockId, ctx) {
   ctx = ctx || "today";
-  const bl = blocksFor(ctxSession(ctx), ctxMode(ctx)).find((b) => b.id === blockId);
+  const bl = ctxBlock(blockId, ctx);
   if (!bl) return;
   ensureAudio();
-  T.block = bl; T.ctx = ctx; T.counts = ctx === "today" && trainState().ok; T.segs = expand(bl.items); T.i = 0;
+  T.block = bl; T.ctx = ctx; T.counts = bl.bonusId ? isPlayer() : ctx === "today" && trainState().ok; T.segs = expand(bl.items); T.i = 0;
   document.documentElement.style.setProperty("--tc", myGroup() === "12-15" ? "#78A2F2" : "#F0783F");
   $("t-block").textContent = bl.title;
   $("t-run").hidden = false; $("t-ctrl").hidden = false; $("t-next").hidden = false; $("t-finish").hidden = true; $("t-stage").hidden = false;
@@ -726,6 +788,13 @@ function finishBlock() {
   $("t-run").hidden = true; $("t-ctrl").hidden = true; $("t-next").hidden = true; $("t-stage").hidden = true;
   const fin = $("t-finish"); fin.hidden = false;
   const bl = T.block;
+  if (bl.bonusId && T.counts) {
+    const already = !!weekBonus(pub(), tk()).done[bl.bonusId];
+    setBonus(bl.bonusId, true);
+    const wb = weekBonus(pub(), tk());
+    fin.innerHTML = '<h2>BONUS DONE</h2><p>' + (already ? 'Already counted this week. Extra reps still make you stronger.' : '+' + BONUS_XP + ' XP.') + ' Weekly bonus: ' + wb.xp + ' / ' + BONUS_MAX + ' XP.</p><div class="row"><button type="button" class="big" data-fin="close">Back</button></div>';
+    return;
+  }
   if (!T.counts) {
     fin.innerHTML = '<h2>BLOCK DONE</h2><p>This was a preview, so nothing was saved.</p><div class="row"><button type="button" class="big" data-fin="close">Back</button></div>';
     return;
@@ -808,7 +877,7 @@ $("modal").addEventListener("click", (e) => {
   if (b) openVideo(b.dataset.video, b.dataset.block, false);
 });
 function openPreview(ctx, blockId, idx) {
-  const bl = blocksFor(ctxSession(ctx), ctxMode(ctx)).find((b) => b.id === blockId);
+  const bl = ctxBlock(blockId, ctx);
   if (!bl) return;
   const it = bl.items[idx];
   const name = it.L ? it.n + " · Left" : it.n;

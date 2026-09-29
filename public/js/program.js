@@ -1,4 +1,4 @@
-// Streak Court · 67-day training program for players aged 10–15.
+// 67 Days Streak Court · 67-day training program for players aged 10–15.
 //
 // Structure
 // - Two age tracks: 10–11 and 12–15 (the NBA / USA Basketball youth age bands).
@@ -887,11 +887,42 @@ export function sessionFor(group, n) {
   };
 }
 
+/* ---------------- Weekly bonus: extra strength & flexibility, any day ---------------- */
+// Each exercise counts once per Monday–Sunday week for BONUS_XP. Do them on rest days or after a session.
+// Keep BONUS_IDS in sync with the list in firestore.rules (bonusIds()).
+export const BONUS_XP = 10;
+const BI = (id, kind, n, s, c, o) => Object.assign(I(n, s, c, o), { id, kind });
+export const BONUS = {
+  "10-11": [
+    BI("pushups", "Strength", "Push-ups", 40, "8 push-ups each set. Knees down is fine. Chest to the floor.", { x: 3, r: 30 }),
+    BI("situps", "Strength", "Sit-ups", 40, "12 each set. Knees bent, feet flat, arms crossed. Curl up, lower slowly.", { x: 3, r: 30 }),
+    BI("plank", "Strength", "Plank", 30, "Elbows under shoulders, body straight. Hold.", { x: 3, r: 20 }),
+    BI("bridge", "Strength", "Glute bridge", 40, "12 each set. Push through your heels, squeeze 2 s at the top.", { x: 3, r: 20 }),
+    BI("kayang", "Flexibility", "Kayang (bridge)", 10, "On a mat. Hands by your ears, push up into an arch and hold. Come down slowly. Can't push up yet? Do a glute bridge hold. Stop if your back hurts.", { x: 3, r: 20 }),
+    BI("fold", "Flexibility", "Cium lutut (forward fold)", 30, "Sit with straight legs. Reach for your toes and bring your nose toward your knees. Breathe, never bounce.", { x: 2, r: 15 }),
+    BI("butterfly", "Flexibility", "Butterfly stretch", 30, "Soles together, sit tall, let your knees drop gently.", { x: 2, r: 15 }),
+    BI("hip", "Flexibility", "Lunge hip stretch", 30, "Back knee down, push your hips forward. Feel the front of the back hip.", { L: true })
+  ],
+  "12-15": [
+    BI("pushups", "Strength", "Push-ups", 45, "12 push-ups each set. Body straight, chest to the floor.", { x: 3, r: 30 }),
+    BI("situps", "Strength", "Sit-ups", 45, "15 each set. Knees bent, feet flat, arms crossed. Curl up, lower slowly.", { x: 3, r: 30 }),
+    BI("plank", "Strength", "Plank", 45, "Elbows under shoulders, body straight. Hold.", { x: 3, r: 20 }),
+    BI("bridge", "Strength", "Glute bridge", 45, "15 each set. Push through your heels, squeeze 2 s at the top.", { x: 3, r: 20 }),
+    BI("kayang", "Flexibility", "Kayang (bridge)", 15, "On a mat. Hands by your ears, push up into an arch and hold. Come down slowly. Stop if your back hurts.", { x: 3, r: 20 }),
+    BI("fold", "Flexibility", "Cium lutut (forward fold)", 30, "Sit with straight legs. Reach for your toes and bring your nose toward your knees. Breathe, never bounce.", { x: 2, r: 15 }),
+    BI("butterfly", "Flexibility", "Butterfly stretch", 30, "Soles together, sit tall, let your knees drop gently.", { x: 2, r: 15 }),
+    BI("hip", "Flexibility", "Lunge hip stretch", 30, "Back knee down, push your hips forward. Feel the front of the back hip.", { L: true })
+  ]
+};
+export const BONUS_IDS = BONUS["10-11"].map((b) => b.id);
+export const BONUS_MAX = BONUS_IDS.length * BONUS_XP;
+
 // Every drill name used anywhere in the program (for checks and previews).
 export function allDrillNames() {
   const names = new Set();
   const add = (items) => items.forEach((it) => names.add(it.n));
   Object.values(HANDLES).forEach((h) => add(h.items));
+  Object.values(BONUS).forEach(add);
   Object.keys(TRACKS).forEach((g) => {
     for (let n = 1; n <= PROGRAM_DAYS; n++) {
       const s = sessionFor(g, n);

@@ -78,7 +78,12 @@ const SEARCH_WORDS = {
   "Double broad jump": "double broad jump plyometric",
   "Depth drop & stick": "depth drop landing drill",
   "Rear-foot elevated split squat": "rear foot elevated split squat bodyweight",
-  "Explosive push-ups": "explosive push up plyometric push up"
+  "Explosive push-ups": "explosive push up plyometric push up",
+  "Sit-ups": "curl up sit up proper form kids",
+  "Kayang (bridge)": "bridge pose backbend kids gymnastics how to",
+  "Cium lutut (forward fold)": "seated forward fold hamstring stretch",
+  "Butterfly stretch": "butterfly stretch how to",
+  "Lunge hip stretch": "kneeling hip flexor stretch"
 };
 
 function baseName(name) {

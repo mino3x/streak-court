@@ -1211,6 +1211,51 @@ A("depth_drop", { view: "side", dur: 2.8, world: { x0: -1.3, x1: 1.5, y0: -0.1, 
   ],
   props: { box: { x: -0.85, w: 0.6, h: 0.3 }, labels: [lab(0, 2.25, "STEP OFF", 0.2, 0.8), lab(0, 2.25, "LAND QUIET · HOLD 2 s", 0.9, 2.2, { accent: 1 })] } });
 
+// ================= WEEKLY BONUS: floor strength & stretches =================
+// Lying poses use rot: 90 (figure on its back, head to the left) and rest on the pelvis.
+A("situp", { view: "side", dur: 2.6, world: W_FLOOR,
+  base: M(NOIK, { rot: 90, c: ["pelvis"], air: 0.1, x: -0.05, lt: 45, ls: -72, rt: 45, rs: -72, lfa: 90, rfa: 90, lu: 25, lf: 150, ru: 25, rf: 150 }),
+  kf: [
+    { t: 0, p: { t: 0, h: 8 } }, { t: 0.9, p: { t: 52, h: 14 } }, { t: 1.3, p: { t: 52, h: 14 } }, { t: 2.3, p: { t: 0, h: 8 } }
+  ],
+  props: { labels: [lab(0.1, 1.15, "CURL UP · LOWER SLOWLY")] } });
+
+A("kayang", { view: "side", dur: 4.0, world: { x0: -1.3, x1: 1.3, y0: -0.1, y1: 1.5 },
+  base: M(NOIK, { rot: 90, c: ["pelvis"], x: 0.05, lfa: 90, rfa: 90 }),
+  kf: [
+    { t: 0, p: { air: 0.1, t: 0, h: 0, lt: 45, ls: -72, rt: 45, rs: -72, lu: 175, lf: 175, ru: 175, rf: 175 } },
+    { t: 0.5, p: { air: 0.1, t: 0, h: 0, lt: 45, ls: -72, rt: 45, rs: -72, lu: 175, lf: 175, ru: 175, rf: 175 } },
+    { t: 1.4, p: { air: 0.8, t: -40, h: -40, lt: -75, ls: -85, rt: -75, rs: -85, lu: -90, lf: -90, ru: -90, rf: -90 } },
+    { t: 3.0, p: { air: 0.8, t: -40, h: -40, lt: -75, ls: -85, rt: -75, rs: -85, lu: -90, lf: -90, ru: -90, rf: -90 } },
+    { t: 3.8, p: { air: 0.1, t: 0, h: 0, lt: 45, ls: -72, rt: 45, rs: -72, lu: 175, lf: 175, ru: 175, rf: 175 } }
+  ],
+  props: { labels: [lab(0, 1.4, "PUSH UP INTO AN ARCH", 0.3, 1.4), lab(0, 1.4, "HOLD · BREATHE", 1.4, 3.0, { accent: 1 }), lab(0, 1.4, "COME DOWN SLOWLY", 3.0, 4.0)] } });
+
+A("forward_fold", { view: "side", dur: 4.0, world: W_FLOOR,
+  base: M(NOIK, { c: ["pelvis"], air: 0.08, x: -0.5, lt: 90, ls: 90, rt: 90, rs: 90, lfa: 90, rfa: 90 }),
+  kf: [
+    { t: 0, p: { t: 0, h: 0, lu: 170, lf: 172, ru: 170, rf: 172 } },
+    { t: 1.2, p: { t: 58, h: 20, lu: 88, lf: 92, ru: 88, rf: 92 } },
+    { t: 3.2, p: { t: 62, h: 22, lu: 90, lf: 94, ru: 90, rf: 94 } },
+    { t: 4.0, p: { t: 0, h: 0, lu: 170, lf: 172, ru: 170, rf: 172 } }
+  ],
+  props: { labels: [lab(0.1, 1.2, "NOSE TO KNEES · NO BOUNCING", 0, 4.0)] } });
+
+A("butterfly", { view: "front", dur: 2.4, world: { x0: -1.2, x1: 1.2, y0: -0.1, y1: 1.5 },
+  base: M(NOIK, { t: 0, h: 0, x: 0, air: 0.04, ls: -110, rs: -110, lu: 18, lf: -20, ru: 18, rf: -20 }),
+  kf: [{ t: 0, p: { lt: 70, rt: 70 } }, { t: 1.2, p: { lt: 80, rt: 80 } }, { t: 2.4, p: { lt: 70, rt: 70 } }],
+  props: { labels: [lab(0, 1.4, "SOLES TOGETHER · KNEES DOWN GENTLY")] } });
+
+A("hip_stretch", { view: "side", dur: 3.2, world: W_SIDE,
+  base: { t: -4, h: 0, lfoot: 0.45, rfoot: -0.55, rfooty: 0.1, lfa: 90, rfa: 150 },
+  kf: [
+    { t: 0, p: { py: 0.5, x: 0, lu: 30, lf: 60, ru: 30, rf: 60 } },
+    { t: 1.1, p: { py: 0.44, x: 0.08, t: -8, lu: 170, lf: 175, ru: 170, rf: 175 } },
+    { t: 2.4, p: { py: 0.44, x: 0.08, t: -8, lu: 170, lf: 175, ru: 170, rf: 175 } },
+    { t: 3.2, p: { py: 0.5, x: 0, lu: 30, lf: 60, ru: 30, rf: 60 } }
+  ],
+  props: { labels: [lab(0, 1.95, "BACK KNEE DOWN · HIPS FORWARD")] } });
+
 // ================= name → animation =================
 const BY_NAME = {
   "W1 Fingertip Taps": "h_fingertip", "W2 Around the World": "h_around_world", "W3 Figure 8 Wraps": "h_fig8_wraps", "W4 Drop & Catch": "h_drop_catch",
@@ -1265,7 +1310,10 @@ const BY_NAME = {
   "Corner threes": "corner_threes", "Relocation threes": "relocation_threes",
   // strength & jumps
   "Double broad jump": "double_broad", "Rear-foot elevated split squat": "rfe_split_squat", "Explosive push-ups": "explosive_pushup",
-  "Depth drop & stick": "depth_drop"
+  "Depth drop & stick": "depth_drop",
+  // weekly bonus
+  "Sit-ups": "situp", "Kayang (bridge)": "kayang", "Cium lutut (forward fold)": "forward_fold",
+  "Butterfly stretch": "butterfly", "Lunge hip stretch": "hip_stretch"
 };
 
 const mirrored = {};

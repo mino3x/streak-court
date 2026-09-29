@@ -8,7 +8,7 @@ import {
 } from "./vendor/firebase.bundle.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { ADMIN_EMAILS } from "./access.js";
-import { keyOf, today, mondayKey } from "./stats.js";
+import { keyOf, today, mondayKey, newCard, privateDetails } from "./stats.js";
 
 export const configured = !String(firebaseConfig.apiKey || "").startsWith("REPLACE");
 
@@ -126,11 +126,9 @@ export function signOutUser() {
 
 /* ---------------- profile ---------------- */
 const now = () => Date.now();
-export const EMPTY_STATS = { xp: 0, dayXp: 0, lastDate: "", weekXp: 0, weekKey: "", days: 0, streak: 0, bestStreak: 0, lastDone: "" };
-
 export async function createProfile({ nickname, age, avatar, group }) {
-  const pub = Object.assign({ nickname, avatar, group, hidden: false, createdAt: now(), updatedAt: now() }, EMPTY_STATS);
-  const priv = { age, consent: true, createdAt: now() };
+  const pub = newCard({ nickname, avatar, group }, now());
+  const priv = privateDetails(age, now());
   if (!configured) {
     cache.pub = Object.assign({ uid: "demo" }, pub); cache.priv = priv; demoSaveProfile(); setViewer(false); emitProfile(); return;
   }
@@ -164,6 +162,12 @@ export function saveDay(log, stats) {
   // Two separate writes: the log always saves, even if the public stats are refused.
   if (stats) updateDoc(doc(db, "players", me.uid), stats).catch((e) => console.warn("stats not saved", e));
   return setDoc(doc(db, "logs", id), log);
+}
+
+/* ---------------- weekly bonus (fields on the player card) ---------------- */
+export function saveBonus(patch) {
+  if (!configured) { Object.assign(cache.pub, patch); demoSaveProfile(); emitProfile(); return Promise.resolve(); }
+  return updateDoc(doc(db, "players", me.uid), patch);
 }
 
 /* ---------------- leaderboard ---------------- */

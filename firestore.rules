@@ -4,7 +4,8 @@ rules_version = '2';
 // - Anyone signed in with a verified Google account can make a player card and train.
 // - players/{uid}: public card and stats, readable by every signed-in player (leaderboard).
 //   Only the owner writes it, and the stats may only change the way the app changes them:
-//   at most 100 XP per day, one day at a time, days move by one, streak never above days.
+//   at most 100 XP per day, one day at a time, days move by one, streak never above days,
+//   and weekly bonus XP only 10 per bonus exercise, each once a week.
 // - users/{uid}: private details (age, parent OK). Owner and admins only.
 // - logs/{uid}_{date}: daily sessions. Owner and admins only; only recent dates can be written.
 // - Admins can hide a card from the leaderboard or delete it.
@@ -52,8 +53,28 @@ service cloud.firestore {
       return n is string && n.matches('^[A-Za-z0-9][A-Za-z0-9 ._-]{1,15}$');
     }
 
+    // Weekly bonus exercises: each id counts once per week for 10 XP. Keep in sync with BONUS_IDS / BONUS_XP in program.js.
+    function bonusIds() {
+      return ['pushups', 'situps', 'plank', 'bridge', 'kayang', 'fold', 'butterfly', 'hip'];
+    }
+    // The current week's Monday (or up to 8 days back for phones that were offline).
+    function recentWeek(w) {
+      return isDate(w) && dayStart(w) > request.time - duration.value(8, 'd') && dayStart(w) < request.time + duration.value(2, 'd');
+    }
+    function bonusShape(d) {
+      return dateOrEmpty(d.get('bonusWeek', ''))
+        && d.get('bonus', {}) is map && d.get('bonus', {}).keys().hasOnly(bonusIds()) && d.get('bonus', {}).values().hasOnly([true])
+        && isInt(d.get('bonusXp', 0), 0, 1000000);
+    }
+    function bonusChangeOk(n, o) {
+      return (n.get('bonusWeek', '') == o.get('bonusWeek', '')
+          && n.get('bonusXp', 0) - o.get('bonusXp', 0) == 10 * (n.get('bonus', {}).size() - o.get('bonus', {}).size()))
+        || (n.get('bonusWeek', '') > o.get('bonusWeek', '') && recentWeek(n.get('bonusWeek', ''))
+          && n.get('bonusXp', 0) - o.get('bonusXp', 0) == 10 * n.get('bonus', {}).size());
+    }
+
     function cardShape(d) {
-      return d.keys().hasOnly(['nickname', 'avatar', 'group', 'hidden', 'createdAt', 'updatedAt', 'xp', 'dayXp', 'dayDone', 'lastDate', 'weekXp', 'weekKey', 'days', 'streak', 'bestStreak', 'lastDone'])
+      return d.keys().hasOnly(['nickname', 'avatar', 'group', 'hidden', 'createdAt', 'updatedAt', 'xp', 'dayXp', 'dayDone', 'lastDate', 'weekXp', 'weekKey', 'days', 'streak', 'bestStreak', 'lastDone', 'bonusWeek', 'bonus', 'bonusXp'])
         && d.keys().hasAll(['nickname', 'avatar', 'group', 'hidden', 'createdAt', 'updatedAt', 'xp', 'dayXp', 'dayDone', 'lastDate', 'weekXp', 'weekKey', 'days', 'streak', 'bestStreak', 'lastDone'])
         && validNickname(d.nickname) && validAvatar(d.avatar) && validGroup(d.group)
         && d.hidden is bool && d.createdAt is int && d.updatedAt is int
@@ -61,11 +82,13 @@ service cloud.firestore {
         && dateOrEmpty(d.lastDate) && isInt(d.weekXp, 0, 500) && dateOrEmpty(d.weekKey)
         && isInt(d.days, 0, 1000) && isInt(d.streak, 0, 1000) && isInt(d.bestStreak, 0, 1000)
         && dateOrEmpty(d.lastDone)
-        && d.streak <= d.bestStreak && d.bestStreak <= d.days;
+        && d.streak <= d.bestStreak && d.bestStreak <= d.days
+        && bonusShape(d);
     }
     function freshCard(d) {
       return d.hidden == false && d.xp == 0 && d.dayXp == 0 && d.dayDone == false && d.lastDate == ''
-        && d.weekXp == 0 && d.weekKey == '' && d.days == 0 && d.streak == 0 && d.bestStreak == 0 && d.lastDone == '';
+        && d.weekXp == 0 && d.weekKey == '' && d.days == 0 && d.streak == 0 && d.bestStreak == 0 && d.lastDone == ''
+        && d.get('bonusWeek', '') == '' && d.get('bonus', {}).size() == 0 && d.get('bonusXp', 0) == 0;
     }
     // Same day as the last save: XP and weekly XP move together, days only by today's finish.
     function sameDayOk(n, o) {
@@ -85,7 +108,8 @@ service cloud.firestore {
     }
     function ownerUpdateOk(n, o) {
       return cardShape(n) && n.hidden == o.hidden && n.createdAt == o.createdAt
-        && ((n.lastDate == o.lastDate && sameDayOk(n, o)) || (n.lastDate != o.lastDate && newDayOk(n, o)));
+        && ((n.lastDate == o.lastDate && sameDayOk(n, o)) || (n.lastDate != o.lastDate && newDayOk(n, o)))
+        && bonusChangeOk(n, o);
     }
 
     // Public player cards (leaderboard).
