@@ -1,16 +1,29 @@
 rules_version = '2';
 
-// Only the Google accounts listed in allowed() can read or write anything.
-// To add or remove someone, edit the list below and push to GitHub.
+// Access model
+// - Admins (listed in isAdmin) can always read/write and approve family members.
+// - Anyone else signs in with Google, which creates a pending request in /members/{uid}.
+//   An admin approves it in the app (Coach guide → Family access). Approved members can train and log.
+// Keep ADMIN_EMAILS in public/js/access.js in sync with the list below.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function isAdmin() {
+      return signedIn() && request.auth.token.email.lower() in [
+        'henrysastrak@gmail.com'
+      ];
+    }
+    function memberDoc() {
+      return /databases/$(database)/documents/members/$(request.auth.uid);
+    }
+    function isMember() {
+      return signedIn() && exists(memberDoc()) && get(memberDoc()).data.approved == true;
+    }
     function allowed() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'REPLACE_WITH_ALLOWED_EMAIL@gmail.com'
-        ];
+      return isAdmin() || isMember();
     }
 
     function validLog(id) {
@@ -23,6 +36,17 @@ service cloud.firestore {
         && d.blocks is map
         && d.complete is bool
         && d.keys().hasOnly(['player', 'date', 'mode', 'blocks', 'score', 'tests', 'complete', 'updatedAt', 'updatedBy']);
+    }
+
+    // Family members: one doc per Google account (uid).
+    match /members/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      // a new account may only file its own pending request
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.approved == false
+        && request.resource.data.player == null
+        && request.resource.data.keys().hasOnly(['email', 'name', 'approved', 'player', 'requestedAt']);
+      allow update, delete: if isAdmin();
     }
 
     // One document per player per day: logs/{player}_{yyyy-mm-dd}

@@ -1,19 +1,22 @@
-// Data layer: Google sign-in + Firestore (with offline cache).
+// Data layer: Google sign-in + Firestore (with offline cache) + family access approvals.
 // If firebase-config.js still has placeholders, runs in "demo mode" and keeps data on this device.
 import {
   initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
   onAuthStateChanged, signOut, setPersistence, browserLocalPersistence,
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, onSnapshot
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot
 } from "./vendor/firebase.bundle.js";
 import { firebaseConfig } from "./firebase-config.js";
+import { ADMIN_EMAILS } from "./access.js";
 
 export const configured = !String(firebaseConfig.apiKey || "").startsWith("REPLACE");
 
-const listeners = { user: [], logs: [], status: [] };
+const listeners = { user: [], logs: [], status: [], access: [], members: [] };
 export function on(evt, fn) { listeners[evt].push(fn); }
 function emit(evt, v) { listeners[evt].forEach((f) => { try { f(v); } catch (e) { console.error(e); } }); }
 
-let auth = null, db = null, unsub = null, currentUser = null;
+let auth = null, db = null, currentUser = null;
+let unsubs = [];
+function clearSubs() { unsubs.forEach((u) => { try { u(); } catch (e) { /* ignore */ } }); unsubs = []; }
 
 function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
@@ -26,12 +29,26 @@ function authMessage(e) {
   return "Sign-in didn't work (" + (c || "unknown error") + "). Try again.";
 }
 
+function watchLogs() {
+  emit("status", { mode: "connecting" });
+  unsubs.push(onSnapshot(collection(db, "logs"), { includeMetadataChanges: true }, (snap) => {
+    const logs = {};
+    snap.forEach((d) => { logs[d.id] = d.data(); });
+    emit("logs", logs);
+    emit("status", { mode: snap.metadata.fromCache ? "offline" : "synced", pending: snap.metadata.hasPendingWrites });
+  }, (err) => {
+    emit("status", { mode: err.code === "permission-denied" ? "denied" : "error", message: err.message });
+  }));
+}
+
 export function start() {
   if (!configured) {
     emit("status", { mode: "demo" });
-    currentUser = { demo: true, name: "Demo mode", email: "", uid: "demo" };
+    currentUser = { demo: true, admin: true, name: "Demo mode", email: "", uid: "demo" };
     emit("user", currentUser);
+    emit("access", { state: "approved", player: null });
     emit("logs", lsGet("sc.demo.logs", {}));
+    emit("members", []);
     return;
   }
   const app = initializeApp(firebaseConfig);
@@ -44,19 +61,42 @@ export function start() {
   }
   getRedirectResult(auth).catch((e) => emit("status", { mode: "error", message: authMessage(e) }));
   onAuthStateChanged(auth, (u) => {
-    if (unsub) { unsub(); unsub = null; }
+    clearSubs();
     if (!u) { currentUser = null; emit("user", null); emit("logs", {}); return; }
-    currentUser = { name: u.displayName || u.email, email: u.email, uid: u.uid, photo: u.photoURL };
+    const email = (u.email || "").toLowerCase();
+    const admin = ADMIN_EMAILS.includes(email);
+    currentUser = { name: u.displayName || u.email, email: u.email, uid: u.uid, photo: u.photoURL, admin };
     emit("user", currentUser);
-    emit("status", { mode: "connecting" });
-    unsub = onSnapshot(collection(db, "logs"), { includeMetadataChanges: true }, (snap) => {
-      const logs = {};
-      snap.forEach((d) => { logs[d.id] = d.data(); });
-      emit("logs", logs);
-      emit("status", { mode: snap.metadata.fromCache ? "offline" : "synced", pending: snap.metadata.hasPendingWrites });
-    }, (err) => {
-      emit("status", { mode: err.code === "permission-denied" ? "denied" : "error", message: err.message });
-    });
+    if (admin) {
+      emit("access", { state: "approved", player: null });
+      watchLogs();
+      unsubs.push(onSnapshot(collection(db, "members"), (snap) => {
+        const list = [];
+        snap.forEach((d) => list.push(Object.assign({ uid: d.id }, d.data())));
+        emit("members", list);
+      }, () => emit("members", [])));
+      return;
+    }
+    // Family member: own access doc decides what they can see.
+    let logsOn = false, filing = false;
+    emit("access", { state: "checking" });
+    unsubs.push(onSnapshot(doc(db, "members", u.uid), (snap) => {
+      if (!snap.exists()) {
+        if (filing) return;
+        filing = true;
+        setDoc(doc(db, "members", u.uid), { email: u.email || "", name: u.displayName || "", approved: false, player: null, requestedAt: Date.now() })
+          .catch((e) => emit("status", { mode: "error", message: e.message }));
+        emit("access", { state: "pending" });
+        return;
+      }
+      const m = snap.data();
+      if (m.approved) {
+        emit("access", { state: "approved", player: m.player || null });
+        if (!logsOn) { logsOn = true; watchLogs(); }
+      } else {
+        emit("access", { state: "pending" });
+      }
+    }, (err) => emit("access", { state: "error", message: err.message })));
   });
 }
 
@@ -76,7 +116,17 @@ export async function signIn() {
 
 export function signOutUser() {
   if (!configured) return Promise.resolve();
+  clearSubs();
   return signOut(auth);
+}
+
+export function approveMember(uid, player) {
+  if (!configured) return Promise.resolve();
+  return updateDoc(doc(db, "members", uid), { approved: true, player: player || null });
+}
+export function removeMember(uid) {
+  if (!configured) return Promise.resolve();
+  return deleteDoc(doc(db, "members", uid));
 }
 
 export function saveLog(log) {

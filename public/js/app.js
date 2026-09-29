@@ -266,8 +266,25 @@ function viewProgress() {
   html += '<h3 class="sec-h">Friday tests</h3><div class="tablewrap"><table class="pbtable">' + head("Test") + '<tbody>' + TESTS[p].map((t) => row(t.label, t.unit, history(p, { type: "test", id: t.id }))).join("") + '</tbody></table></div>';
   return html;
 }
+function familyCard() {
+  if (!state.user || !state.user.admin || state.user.demo) return "";
+  const list = (state.members || []).slice().sort((a, b) => (a.approved === b.approved ? 0 : a.approved ? 1 : -1));
+  const who = (m) => esc(m.name || m.email || "Unknown") + (m.email ? '<br><span class="small">' + esc(m.email) + '</span>' : '');
+  const role = (m) => m.player ? PROGRAM[m.player].name : "Parent / coach";
+  const rows = list.map((m) => m.approved
+    ? '<tr><td>' + who(m) + '</td><td>' + esc(role(m)) + '</td><td><button type="button" class="btn ghost" data-remove="' + esc(m.uid) + '">Remove</button></td></tr>'
+    : '<tr><td>' + who(m) + '</td><td><b>Waiting</b></td><td><div class="row" style="display:flex;gap:6px;flex-wrap:wrap">' +
+        '<button type="button" class="btn" data-approve="' + esc(m.uid) + ':harvell">Harvell</button>' +
+        '<button type="button" class="btn" data-approve="' + esc(m.uid) + ':jasper">Jasper</button>' +
+        '<button type="button" class="btn ghost" data-approve="' + esc(m.uid) + ':">Parent</button>' +
+        '<button type="button" class="btn ghost" data-remove="' + esc(m.uid) + '">Decline</button></div></td></tr>').join("");
+  return '<section class="card" aria-labelledby="fam-h"><h3 id="fam-h">Family access</h3>' +
+    '<p>When Harvell or Jasper signs in with Google on their phone, a request shows up here. Approve it as the right player and the app opens on their plan.</p>' +
+    (rows ? '<div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead><tr><th>Account</th><th>Access</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+          : '<p class="small">No requests yet. Ask them to open the app and sign in with Google.</p>') + '</section>';
+}
 function viewGuide() {
-  return '<div class="guide">' +
+  return '<div class="guide">' + familyCard() +
   '<section class="card"><h3>How the streak works</h3><ul>' +
     '<li>Finish every block of today\'s session (tick it, or run its timer to the end). The day turns orange and the streak grows.</li>' +
     '<li>Only Monday to Friday count. Weekends never break a streak.</li>' +
@@ -321,7 +338,15 @@ $("panel").addEventListener("click", (e) => {
   if (t.dataset.preview) { const [bid, idx] = t.dataset.preview.split(":"); openPreview(bid, +idx); return; }
   if (t.dataset.step) { stepInput(t); return; }
   if (t.dataset.savescore) { saveScore(t.dataset.savescore, $("score-today"), false); return; }
-  if (t.dataset.savetests) { saveTests($("panel"), "test-"); }
+  if (t.dataset.savetests) { saveTests($("panel"), "test-"); return; }
+  if (t.dataset.approve) {
+    const [uid, player] = t.dataset.approve.split(":");
+    store.approveMember(uid, player || null).then(() => toast("Approved.")).catch(() => toast("Couldn't approve. Check your connection and try again."));
+    return;
+  }
+  if (t.dataset.remove) {
+    store.removeMember(t.dataset.remove).then(() => toast("Access removed.")).catch(() => toast("Couldn't remove. Check your connection and try again."));
+  }
 });
 function stepInput(btn) {
   const inp = $(btn.dataset.for); if (!inp) return;
@@ -603,17 +628,29 @@ $("signout").addEventListener("click", () => store.signOutUser());
 store.on("user", (u) => {
   state.user = u;
   if (!u) { showGate("Sign in to track Harvell's and Jasper's training."); return; }
-  $("gate").hidden = true; $("app").hidden = false;
   $("demo").hidden = !u.demo; $("signout").hidden = !!u.demo;
+});
+store.on("access", (a) => {
+  if (!state.user) return;
+  if (a.state === "checking") { showGate("Checking access for " + (state.user.email || "this account") + "…", "", true); return; }
+  if (a.state === "pending") {
+    showGate("Request sent for " + (state.user.email || "this account") + ". Ask H to approve it in the app (Coach guide → Family access). This page opens by itself once approved.", "", true);
+    return;
+  }
+  if (a.state === "error") { showGate("Couldn't check access.", a.message || "", true); return; }
+  // approved
+  if (a.player && !state.playerSetFromAccess) { state.player = a.player; state.playerSetFromAccess = true; lsSet("sc.player", state.player); }
+  $("gate").hidden = true; $("app").hidden = false;
   render();
 });
+store.on("members", (list) => { state.members = list || []; if (state.tab === "guide" && $("timer").hidden && !$("app").hidden) render(); });
 store.on("logs", (l) => { logs = l || {}; if (state.user && $("timer").hidden) render(); else if (state.user) renderHero(); });
 store.on("status", (s) => {
   state.status = s.mode;
   const txt = { demo: "Demo mode", connecting: "Connecting…", synced: s.pending ? "Saving…" : "Synced", offline: "Offline · saved here", error: "Sync problem" }[s.mode];
   if (txt) $("sync").textContent = txt;
   if (s.mode === "denied") {
-    showGate("This Google account (" + (state.user && state.user.email) + ") isn't on the list yet.", "Ask H to add it to firestore.rules, or sign in with another account.", true);
+    showGate("This Google account (" + (state.user && state.user.email) + ") doesn't have access yet.", "Ask H to approve it in Coach guide → Family access, or sign in with another account.", true);
   }
   if (s.mode === "error" && s.message && !$("gate").hidden) $("gate-err").textContent = s.message;
 });

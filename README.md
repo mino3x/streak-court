@@ -25,13 +25,15 @@ Aplikasi latihan basket harian untuk **Harvell (U10)** dan **Jasper (U14)**: jad
    - Hosting → Get started.
    - Project settings → Your apps → Web app → salin `firebaseConfig` ke `public/js/firebase-config.js`.
 2. **Project id**: isi `.firebaserc` → `"default": "<project-id>"`.
-3. **Email yang boleh login**: isi daftar di `firestore.rules` (fungsi `allowed()`).
+3. **Admin**: email admin ada di `firestore.rules` (fungsi `isAdmin()`) dan `public/js/access.js`. Keduanya harus sama.
 4. **GitHub secret**: Firebase → Project settings → Service accounts → *Generate new private key*. Tempel isi file JSON-nya ke repo → Settings → Secrets and variables → Actions → secret `FIREBASE_SERVICE_ACCOUNT`. Jangan commit file JSON itu.
 5. Push ke `main`. GitHub Actions akan men-deploy hosting dan aturan Firestore. Alamat aplikasinya: `https://<project-id>.web.app`.
 
-## Menambah/mengubah akses
+## Akses keluarga
 
-Edit daftar email di `firestore.rules`, commit, lalu push. Aturan baru langsung terpasang.
+- Admin (`henrysastrak@gmail.com`) selalu bisa masuk.
+- Anak-anak cukup buka aplikasinya di HP dan **Sign in with Google**. Permintaan akses mereka muncul di **Coach guide → Family access**. Admin menyetujui sebagai **Harvell**, **Jasper**, atau **Parent**. Setelah disetujui, aplikasi di HP anak langsung terbuka di program miliknya.
+- Menambah admin: ubah `isAdmin()` di `firestore.rules` dan `public/js/access.js`, lalu push.
 
 ## Mengubah program latihan
 
