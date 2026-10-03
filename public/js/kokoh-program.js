@@ -99,7 +99,7 @@ export const VERSIONS = {
       ]),
       B("speed", "Sprint, Stop, Ganti Arah", 7, "Lari harus 100% cepat, jadi istirahatnya penuh.", [
         R("sprint_stop", "4 × 10 m", 4, 1, 45, { unit: "sprint", restText: "jalan balik" }),
-        R("cut", "4 × · 2 tiap sisi", 4, 1, 45, { unit: "cut", restText: "jalan balik" }),
+        R("cut", "4 × (2 tiap sisi)", 4, 1, 45, { unit: "cut", restText: "jalan balik" }),
         T("band_slide", "3 × 10 dtk", 3, 10, 30)
       ], "Istirahat = jalan balik ke start (±45 dtk). Mulai lambat? Berhenti untuk hari ini."),
       B("strength", "Kekuatan", 9, "Gerakan rapi dulu, baru tambah beban.", [
@@ -133,7 +133,7 @@ export const VERSIONS = {
       ]),
       B("speed", "Sprint, Stop, Ganti Arah", 9, "Lari harus 100% cepat, jadi istirahatnya penuh.", [
         R("sprint_stop", "6 × 15 m", 6, 1, 50, { unit: "sprint", restText: "jalan balik" }),
-        R("cut", "6 × · 3 tiap sisi", 6, 1, 50, { unit: "cut", restText: "jalan balik" }),
+        R("cut", "6 × (3 tiap sisi)", 6, 1, 50, { unit: "cut", restText: "jalan balik" }),
         T("band_slide", "3 × 15 dtk", 3, 15, 30)
       ], "Istirahat = jalan balik ke start (±50 dtk). Mulai lambat? Berhenti untuk hari ini."),
       B("strength", "Kekuatan", 13, "Ini yang membuat badan lebih kuat dan berisi.", [
