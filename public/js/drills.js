@@ -1257,7 +1257,7 @@ A("hip_stretch", { view: "side", dur: 3.2, world: W_SIDE,
   props: { labels: [lab(0, 1.95, "BACK KNEE DOWN · HIPS FORWARD")] } });
 
 // ================= name → animation =================
-// ================= LARI KOKOH (strength & stability for running, /kokoh) =================
+// ================= IRON LEGS (strength & stability for running, /kokoh) =================
 A("jump_rope", { view: "front", dur: 1.2, world: { x0: -1.3, x1: 1.3, y0: -0.1, y1: 2.1 },
   base: M(NOIK, { t: 0, h: 0, lt: 3, ls: 0, rt: 3, rs: 0, lz: 0.96, rz: 0.96, lu: 22, lf: 42, ru: 22, rf: 42 }),
   kf: [

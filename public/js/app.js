@@ -286,9 +286,9 @@ function bonusCard(readonly) {
 }
 function kokohCard() {
   const key = myGroup() === "10-11" ? "ku10" : "ku14";
-  return '<section class="card kokohcard" aria-labelledby="kokoh-h"><h3 id="kokoh-h">Lari Kokoh · extra program</h3>' +
+  return '<section class="card kokohcard" aria-labelledby="kokoh-h"><h3 id="kokoh-h">Iron Legs · extra program</h3>' +
     '<p>Strength and stability so you stay solid in sprints, sudden stops, cuts and contact. 2–3 times a week, with animations, set timers and demo videos (in Bahasa Indonesia). Nothing here changes your XP.</p>' +
-    '<a class="btn" href="/kokoh/' + key + '">' + ICON.play + 'Open Lari Kokoh ' + key.toUpperCase() + '</a></section>';
+    '<a class="btn" href="/kokoh/' + key + '">' + ICON.play + 'Open Iron Legs ' + key.toUpperCase() + '</a></section>';
 }
 function setBonus(id, on) {
   const P = pub(); if (!P) return;

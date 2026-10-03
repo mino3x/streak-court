@@ -13,7 +13,7 @@ Alamat aplikasi: **https://streak-court.web.app**
 - **Setiap sesi**: fisik ±20 menit (warm-up 5, atletik 7–8, kekuatan 7), handles 7 menit, basket 10 menit dengan challenge berskor.
 - **Streak**: hari kerja berturut-turut dengan sesi selesai. Akhir pekan tidak memutus streak. Maksimal 5 sesi per minggu; sesi pengganti (make-up) boleh di akhir pekan.
 - **Peta 67 hari** (tab Program): hari yang selesai diberi centang hijau, hari berikutnya terbuka, hari-hari setelahnya terkunci sampai hari sebelumnya selesai. Coach view bisa membuka semua hari.
-- **Lari Kokoh** (`/kokoh/ku10`, `/kokoh/ku14`): program tambahan kekuatan dan stabilitas untuk lari yang kokoh (sprint, stop, ganti arah, body contact), 2–3x seminggu. Halaman publik tanpa login, tidak menyimpan data, tidak mengubah XP. Ada animasi tiap gerakan, video demo, dan mode latihan dengan set dan timer istirahat. Kartu link ada di tab Today dan Guide. QR code di poster mengarah ke halaman ini.
+- **Iron Legs** (`/kokoh/ku10`, `/kokoh/ku14`): program tambahan kekuatan dan stabilitas untuk lari yang kokoh (sprint, stop, ganti arah, body contact), 2–3x seminggu. Halaman publik tanpa login, tidak menyimpan data, tidak mengubah XP. Ada animasi tiap gerakan, video demo, dan mode latihan dengan set dan timer istirahat. Kartu link ada di tab Today dan Guide. QR code di poster mengarah ke halaman ini.
 - **Weekly bonus** (tab Today): push-up, sit-up, plank, glute bridge, kayang, cium lutut, butterfly stretch, dan lunge hip stretch. Boleh dikerjakan hari apa saja, termasuk hari istirahat. Masing-masing dihitung sekali per minggu.
 
 ## Poin (XP) yang adil
@@ -42,7 +42,7 @@ Target challenge per usia ada di `public/js/scoring.js` (`TARGETS`). Anak 10 tah
 | `public/js/drills.js` | Animasi setiap drill + peta nama drill → animasi |
 | `public/js/anim.js` | Mesin animasi (tampak samping, depan, atas) |
 | `public/js/videos.js` | Video demo YouTube per drill |
-| `public/kokoh.html`, `public/js/kokoh.js`, `public/js/kokoh-program.js`, `public/css/kokoh.css` | Halaman Lari Kokoh: program KU10/KU14, gerakan, dosis, video |
+| `public/kokoh.html`, `public/js/kokoh.js`, `public/js/kokoh-program.js`, `public/css/kokoh.css` | Halaman Iron Legs: program KU10/KU14, gerakan, dosis, video |
 | `public/js/store.js` | Login Google + Firestore |
 | `public/js/app.js` | Tampilan aplikasi |
 | `firestore.rules` | Aturan akses dan anti-curang |

@@ -1,4 +1,4 @@
-// Lari Kokoh: strength and stability for running hard in basketball (sprints, stops, cuts, contact).
+// Iron Legs (Lari Kokoh): strength and stability for running hard in basketball (sprints, stops, cuts, contact).
 // Two versions: KU10 (ages 10–11 track) and KU14 (ages 12–15 track). Public page: /kokoh/ku10, /kokoh/ku14.
 //
 // Each exercise: name, animation id (ANIMS in drills.js), coaching cues, demo video.

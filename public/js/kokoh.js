@@ -1,4 +1,4 @@
-// Lari Kokoh page (/kokoh/ku10, /kokoh/ku14). Public: no sign-in, nothing is saved.
+// Iron Legs page (/kokoh/ku10, /kokoh/ku14). Public: no sign-in, nothing is saved.
 import { Player, drawFrame } from "./anim.js";
 import { ANIMS } from "./drills.js";
 import { VERSIONS, EX, SAFETY, GEAR, versionFor, allItems } from "./kokoh-program.js";
@@ -26,7 +26,7 @@ function switchHtml() {
 }
 
 function chooserHtml() {
-  return '<section class="kk-hero"><p class="kk-eyebrow">Program tambahan · 67 Days Streak Court</p><h1 class="kk-title">LARI <span>KOKOH</span></h1>' +
+  return '<section class="kk-hero"><p class="kk-eyebrow">Program tambahan · 67 Days Streak Court</p><h1 class="kk-title">IRON <span>LEGS</span></h1>' +
     '<p class="kk-lead">Latihan kekuatan dan stabilitas supaya tidak mudah goyah saat sprint, berhenti mendadak, ganti arah, atau kena body contact. Pilih versimu:</p></section>' +
     '<div class="kk-pick">' + Object.values(VERSIONS).map((v) => '<a class="kk-pickcard" data-v="' + v.id + '" href="' + hrefFor(v.id) + '"><b>' + v.label + '</b><span>' + esc(v.ages) + ' · ±' + v.minutes + ' menit</span></a>').join("") + '</div>';
 }
@@ -46,7 +46,7 @@ function cardHtml(it, bi, ii) {
 function pageHtml(v) {
   const items = allItems(v).length;
   let h = '<section class="kk-hero"><p class="kk-eyebrow">Program tambahan · 67 Days Streak Court</p>' +
-    '<h1 class="kk-title">LARI <span>KOKOH</span></h1>' +
+    '<h1 class="kk-title">IRON <span>LEGS</span></h1>' +
     '<p class="kk-meta"><b>Versi ' + v.label + '</b> · ' + esc(v.ages) + ' · ±' + v.minutes + ' menit · 2–3x seminggu</p>' +
     '<p class="kk-lead">Supaya tidak mudah goyah saat sprint, berhenti mendadak, ganti arah, atau kena body contact. ' + esc(v.focus) + '</p>' +
     '<div class="kk-actions"><button type="button" class="btn big" id="kk-start">' + PLAY + 'Mulai latihan</button>' +
@@ -248,7 +248,7 @@ function finish() {
   if (G.player) G.player.stop();
   beep(880, 160); setTimeout(() => beep(1320, 300), 180);
   const f = $("g-finish"); f.hidden = false;
-  f.innerHTML = '<h2>LATIHAN SELESAI</h2><p>Kerja bagus. Besok istirahat atau main basket saja, latihan Lari Kokoh lagi lusa. Jangan lupa makan dan tidur cukup.</p><div class="row"><button type="button" class="big" id="g-done">Tutup</button></div>';
+  f.innerHTML = '<h2>LATIHAN SELESAI</h2><p>Kerja bagus. Besok istirahat atau main basket saja, latihan Iron Legs lagi lusa. Jangan lupa makan dan tidur cukup.</p><div class="row"><button type="button" class="big" id="g-done">Tutup</button></div>';
   $("g-done").addEventListener("click", closeGuided);
   $("g-done").focus();
 }
@@ -258,9 +258,9 @@ $("kk-switch").innerHTML = switchHtml();
 $("kk-foot").innerHTML = footHtml();
 if (!V) {
   $("kk-main").innerHTML = chooserHtml();
-  document.title = "Lari Kokoh · 67 Days Streak Court";
+  document.title = "Iron Legs · 67 Days Streak Court";
 } else {
-  document.title = "Lari Kokoh " + V.label + " · 67 Days Streak Court";
+  document.title = "Iron Legs " + V.label + " · 67 Days Streak Court";
   $("kk-main").innerHTML = pageHtml(V);
   wireCanvases();
   $("kk-start").addEventListener("click", openGuided);
