@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id" data-group="10-11">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lari Kokoh · 67 Days Streak Court</title>
+<meta name="description" content="Lari Kokoh: latihan kekuatan dan stabilitas supaya lari di basket kokoh saat sprint, berhenti, ganti arah, dan body contact. Dengan animasi gerakan dan video demo.">
+<meta name="theme-color" content="#15130F">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/kokoh.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><text id="t67" x="14" y="88"><tspan class="d6" rotate="-6">6</tspan><tspan class="d7" dx="-4" dy="7" rotate="9">7</tspan></text></defs>
+</svg>
+
+<div class="wrap kk" id="kk">
+  <header class="top">
+    <a class="kk-home" href="/" aria-label="67 Days Streak Court, open the app"><span class="wm wm-sm"><span class="sr">67 Days Streak Court</span><svg class="n67" viewBox="0 0 150 116" aria-hidden="true"><g transform="rotate(-6 75 58)"><use href="#t67" class="sh" transform="translate(5 6)"/><use href="#t67" class="edge"/><use href="#t67" class="line"/><use href="#t67" class="fill"/></g></svg><span class="wm-text" aria-hidden="true"><span class="wm-days">DAYS</span><span class="wm-name">STREAK COURT</span></span></span></a>
+    <nav class="kk-switch" id="kk-switch" aria-label="Versi program"></nav>
+  </header>
+  <main id="kk-main" class="kk-main"><p class="small">Memuat…</p></main>
+  <footer class="kk-foot" id="kk-foot"></footer>
+</div>
+
+<div class="timer" id="g" hidden role="dialog" aria-modal="true" aria-labelledby="g-name">
+  <div class="t-top"><span id="g-block"></span><span id="g-count"></span><button class="t-x" id="g-close" type="button">Tutup</button></div>
+  <div class="t-bar"><i id="g-prog"></i></div>
+  <div class="t-stage" id="g-stage">
+    <canvas id="g-canvas" role="img" aria-label="Animasi gerakan"></canvas>
+    <button type="button" class="vbtn" id="g-video"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Video demo</button>
+  </div>
+  <div class="t-main" id="g-run">
+    <div class="t-kind" id="g-kind">Latihan</div>
+    <h2 class="t-name" id="g-name"></h2>
+    <div class="t-set" id="g-set"></div>
+    <div class="t-clock" id="g-clock" aria-live="polite"></div>
+    <p class="t-cue" id="g-cue"></p>
+  </div>
+  <div class="t-finish" id="g-finish" hidden></div>
+  <div class="t-next" id="g-next"></div>
+  <div class="t-ctrl" id="g-ctrl">
+    <button type="button" id="g-back">Kembali</button>
+    <button type="button" id="g-main" class="primary">Mulai</button>
+    <button type="button" id="g-skip">Lewati</button>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="m-title"></h3><button type="button" class="btn ghost" id="m-close">Tutup</button></div>
+    <div class="modal-body" id="m-body"></div>
+  </div>
+</div>
+
+<script type="module" src="/js/kokoh.js"></script>
+</body>
+</html>

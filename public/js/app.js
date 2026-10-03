@@ -265,6 +265,7 @@ function viewToday() {
   } else {
     html += '<section class="card"><h3>Challenge · ' + esc(C.label) + '</h3><p>' + esc(C.how) + ' Full points at ' + target + ' ' + esc(C.unit) + '.</p></section>';
   }
+  html += kokohCard();
   return html;
 }
 function bonusCard(readonly) {
@@ -282,6 +283,12 @@ function bonusCard(readonly) {
   return '<section class="card bonuscard" aria-labelledby="bonus-h"><div class="bonus-top"><h3 id="bonus-h">Weekly bonus</h3>' + (readonly ? '' : '<span class="chip accent">+' + wb.xp + ' / ' + BONUS_MAX + ' XP</span>') + '</div>' +
     '<p>Extra strength and stretching for any day, even rest days. Each exercise gives +' + BONUS_XP + ' XP once a week. Resets every Monday.</p>' +
     (readonly ? '' : '<div class="bar" aria-hidden="true"><i style="width:' + Math.round(wb.xp / BONUS_MAX * 100) + '%"></i></div>') + '<ul class="bonus-list">' + rows + '</ul></section>';
+}
+function kokohCard() {
+  const key = myGroup() === "10-11" ? "ku10" : "ku14";
+  return '<section class="card kokohcard" aria-labelledby="kokoh-h"><h3 id="kokoh-h">Lari Kokoh · extra program</h3>' +
+    '<p>Strength and stability so you stay solid in sprints, sudden stops, cuts and contact. 2–3 times a week, with animations, set timers and demo videos (in Bahasa Indonesia). Nothing here changes your XP.</p>' +
+    '<a class="btn" href="/kokoh/' + key + '">' + ICON.play + 'Open Lari Kokoh ' + key.toUpperCase() + '</a></section>';
 }
 function setBonus(id, on) {
   const P = pub(); if (!P) return;
@@ -444,7 +451,7 @@ function targetsTable() {
   return '<div class="tablewrap" style="border:0;padding:0"><table class="compare"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
 }
 function viewGuide() {
-  return '<div class="guide">' +
+  return '<div class="guide">' + kokohCard() +
   '<section class="card"><h3>How it works</h3><ul>' +
     '<li><b>67 days.</b> Day 1 is your first finished session, Day 67 your graduation. Missed a day? Nothing is skipped: you just do the next day number.</li>' +
     '<li><b>Your streak</b> counts weekdays in a row with a finished session. Weekends never break it. Miss a weekday and it starts again; your best streak is kept.</li>' +

@@ -33,6 +33,43 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/kokoh",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/kokoh/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/kokoh.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/kokoh",
+        "destination": "/kokoh.html"
+      },
+      {
+        "source": "/kokoh/**",
+        "destination": "/kokoh.html"
       }
     ]
   },

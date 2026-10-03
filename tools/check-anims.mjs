@@ -1,6 +1,10 @@
-// Lists drill names from the program that have no animation.
+// Lists drill names from the program (and Lari Kokoh exercises) that have no animation.
 import { allDrillNames } from "../public/js/program.js";
-import { animFor } from "../public/js/drills.js";
+import { animFor, ANIMS } from "../public/js/drills.js";
+import { EX, VERSIONS } from "../public/js/kokoh-program.js";
 const missing = allDrillNames().filter((n) => n !== "Get ready" && !animFor(n) && !animFor(n + " · Left"));
-console.log(missing.length ? "Missing animations:\n  " + missing.join("\n  ") : "Every drill has an animation.");
-process.exitCode = missing.length ? 1 : 0;
+const kokoh = Object.entries(EX).filter(([, e]) => !ANIMS[e.anim]).map(([id, e]) => "Lari Kokoh: " + id + " → " + e.anim);
+Object.values(VERSIONS).forEach((v) => v.blocks.forEach((b) => b.items.forEach((it) => { if (!EX[it.ex]) kokoh.push("Lari Kokoh " + v.id + ": unknown exercise " + it.ex); })));
+const all = missing.concat(kokoh);
+console.log(all.length ? "Missing animations:\n  " + all.join("\n  ") : "Every drill has an animation.");
+process.exitCode = all.length ? 1 : 0;

@@ -1257,6 +1257,158 @@ A("hip_stretch", { view: "side", dur: 3.2, world: W_SIDE,
   props: { labels: [lab(0, 1.95, "BACK KNEE DOWN · HIPS FORWARD")] } });
 
 // ================= name → animation =================
+// ================= LARI KOKOH (strength & stability for running, /kokoh) =================
+A("jump_rope", { view: "front", dur: 1.2, world: { x0: -1.3, x1: 1.3, y0: -0.1, y1: 2.1 },
+  base: M(NOIK, { t: 0, h: 0, lt: 3, ls: 0, rt: 3, rs: 0, lz: 0.96, rz: 0.96, lu: 22, lf: 42, ru: 22, rf: 42 }),
+  kf: [
+    { t: 0, p: { air: 0 }, e: "out" },
+    { t: 0.3, p: { air: 0.11, lz: 1, rz: 1, lf: 50, rf: 50 }, e: "in" },
+    { t: 0.6, p: { air: 0 }, e: "out" },
+    { t: 0.9, p: { air: 0.11, lz: 1, rz: 1, lf: 50, rf: 50 }, e: "in" }
+  ],
+  gear: [{ type: "rope", period: 0.6, phase: 0.3 }],
+  props: { labels: [lab(0, 2.0, "LIGHT ON THE TOES · SMALL HOPS")] } });
+
+const HIPS_HANDS = { lu: 28, lf: -40, ru: 28, rf: -40 };
+function bandWalkKF(x0, dir, steps, t0, dt) {
+  const out = [];
+  let x = x0, lf = x0 + 0.2, rf = x0 - 0.2;
+  const P = (o) => M({ t: 0, py: 0.62, lfooty: 0.04, rfooty: 0.04 }, HIPS_HANDS, o);
+  out.push({ t: t0, e: "io", p: P({ x, lfoot: lf, rfoot: rf }) });
+  for (let i = 0; i < steps; i++) {
+    const b = t0 + i * dt;
+    const lead = dir > 0 ? "l" : "r";
+    const o1 = { x: x + dir * 0.05 }, o2 = { x: x + dir * 0.13 };
+    let nlf = lf, nrf = rf;
+    if (lead === "l") nlf = lf + 0.3; else nrf = rf - 0.3;
+    o1.lfoot = lead === "l" ? lf + 0.16 : lf; o1.rfoot = lead === "r" ? rf - 0.16 : rf;
+    o1[lead + "footy"] = 0.11;
+    o2.lfoot = nlf; o2.rfoot = nrf;
+    out.push({ t: b + dt * 0.25, e: "io", p: P(o1) });
+    out.push({ t: b + dt * 0.5, e: "io", p: P(o2) });
+    const trail = lead === "l" ? "r" : "l";
+    const o3 = { x: x + dir * 0.22, lfoot: nlf, rfoot: nrf }, o4 = {};
+    if (trail === "r") { o3.rfoot = rf + 0.15; o3.rfooty = 0.06; nrf = rf + 0.3; } else { o3.lfoot = lf - 0.15; o3.lfooty = 0.06; nlf = lf - 0.3; }
+    lf = nlf; rf = nrf; x = (lf + rf) / 2;
+    out.push({ t: b + dt * 0.75, e: "io", p: P(o3) });
+    out.push({ t: b + dt, e: "io", p: P(M(o4, { x, lfoot: lf, rfoot: rf })) });
+  }
+  return out;
+}
+A("band_walk", { view: "front", dur: 5.6, world: { x0: -1.8, x1: 1.8, y0: -0.1, y1: 2.1 },
+  kf: [...bandWalkKF(-0.9, 1, 3, 0, 0.85), ...bandWalkKF(0.0, -1, 3, 2.8, 0.85).slice(1)],
+  gear: [{ type: "band" }],
+  props: { labels: [lab(0, 1.95, "BAND ABOVE THE KNEES · STAY LOW"), lab(0, 1.72, "KNEES PUSH OUT", 0, 5.6, { accent: 1, size: 0.13 })] } });
+
+A("band_slide", M(ANIMS.slides, { _kf: null, gear: [{ type: "band" }],
+  props: { lines: [-1.5, 1.5], labels: [lab(0, 1.95, "BAND ON · PUSH · STAY LOW")] } }));
+
+A("box_jump", { view: "side", dur: 4.4, world: { x0: -1.4, x1: 1.4, y0: -0.1, y1: 2.3 },
+  kf: [
+    { t: 0, p: M(STAND, { x: -0.6, lfoot: -0.53, rfoot: -0.65 }) },
+    { t: 0.5, p: M(DIP_BACK, { x: -0.7, lfoot: -0.53, rfoot: -0.65, lu: -70, ru: -70 }), e: "out" },
+    { t: 0.72, p: M(NOIK, { x: -0.5, air: 0.06, t: 30, h: -15, lt: -15, ls: -15, rt: -15, rs: -15, lfa: 150, rfa: 150, lu: 150, lf: 160, ru: 150, rf: 160 }), e: "lin" },
+    { t: 0.95, p: M(NOIK, { x: 0.05, air: 0.48, t: 20, h: -10, lt: 85, ls: 10, rt: 85, rs: 10, lu: 110, lf: 120, ru: 110, rf: 120 }), e: "in" },
+    { t: 1.18, p: M(HALF, { x: 0.36, py: 0.94, lfoot: 0.46, rfoot: 0.37, lfooty: 0.4, rfooty: 0.4, lu: 80, lf: 85, ru: 80, rf: 85 }) },
+    { t: 1.9, p: M(HALF, { x: 0.36, py: 0.94, lfoot: 0.46, rfoot: 0.37, lfooty: 0.4, rfooty: 0.4, lu: 80, lf: 85, ru: 80, rf: 85 }) },
+    { t: 2.3, p: M(STAND, { x: 0.4, py: 1.15, lfoot: 0.46, rfoot: 0.37, lfooty: 0.4, rfooty: 0.4 }) },
+    { t: 2.8, p: M(STAND, { x: 0.2, py: 1.0, t: 6, lfoot: 0.4, rfoot: -0.1, lfooty: 0.4, rfooty: 0.14 }) },
+    { t: 3.15, p: M(STAND, { x: 0.05, py: 0.77, t: 6, lfoot: 0.4, rfoot: -0.12, lfooty: 0.4, rfooty: 0.04 }) },
+    { t: 3.55, p: M(STAND, { x: -0.25, lfoot: -0.18, rfoot: -0.3 }) },
+    { t: 4.4, p: M(STAND, { x: -0.6, lfoot: -0.53, rfoot: -0.65 }) }
+  ],
+  props: { box: { x: 0.12, w: 0.6, h: 0.36 }, labels: [lab(0, 2.2, "SWING · JUMP UP", 0.2, 1.0), lab(0, 2.2, "LAND SOFT ON TOP", 1.1, 2.3, { accent: 1 }), lab(0, 2.2, "STEP DOWN · NEVER JUMP DOWN", 2.4, 4.0)] } });
+
+A("mb_slam", { view: "side", dur: 3.0, world: { x0: -1.2, x1: 1.4, y0: -0.1, y1: 2.3 }, ballStyle: "mb",
+  kf: [
+    { t: 0, p: M(STAND, { lu: 20, lf: 115, ru: 20, rf: 115 }) },
+    { t: 0.6, p: M(STAND, { t: -4, lu: 172, lf: 176, ru: 172, rf: 176, lfa: 115, rfa: 115 }), e: "in" },
+    { t: 0.9, p: M(HALF, { t: 42, py: 0.6, lu: 75, lf: 70, ru: 75, rf: 70 }), e: "out" },
+    { t: 1.5, p: M(HALF, { t: 42, py: 0.6, lu: 75, lf: 70, ru: 75, rf: 70 }) },
+    { t: 2.1, p: M(SQUAT, { t: 45, py: 0.46, lfoot: 0.12, rfoot: 0.02, lu: 25, lf: 25, ru: 25, rf: 25 }) },
+    { t: 3.0, p: M(STAND, { lu: 20, lf: 115, ru: 20, rf: 115 }) }
+  ],
+  ball: [
+    { t: 0, mid: ["handL", "handR"], dx: 0.08 }, { t: 0.6, mid: ["handL", "handR"], dy: 0.08 }, { t: 0.82, mid: ["handL", "handR"], dx: 0.05 },
+    { t: 0.98, x: 0.5, y: 0.11, e: "out" }, { t: 1.3, x: 0.5, y: 0.42, e: "in" }, { t: 1.6, x: 0.5, y: 0.11 }, { t: 2.1, x: 0.5, y: 0.11 },
+    { t: 2.3, mid: ["handL", "handR"], dx: 0.08 }
+  ],
+  props: { labels: [lab(0, 2.2, "REACH HIGH", 0.1, 0.75), lab(0, 2.2, "SLAM HARD · HIPS BACK", 0.8, 1.7, { accent: 1 }), lab(0, 2.2, "SQUAT TO PICK UP", 1.8, 3.0)] } });
+
+function stepUpSpec(db) {
+  const arms = db ? { lu: 2, lf: 2, ru: 2, rf: 2 } : { lu: 30, lf: 80, ru: -20, rf: 10 };
+  const armsUp = db ? { lu: 2, lf: 2, ru: 2, rf: 2 } : { lu: -25, lf: 20, ru: 55, rf: 120 };
+  const spec = { view: "side", dur: 3.4, world: { x0: -1.3, x1: 1.4, y0: -0.1, y1: 2.45 },
+    kf: [
+      { t: 0, p: M(STAND, { x: -0.28, lfoot: -0.2, rfoot: -0.33 }, db ? arms : {}) },
+      { t: 0.6, p: M(STAND, { x: -0.2, py: 0.74, t: 12, lfoot: 0.3, lfooty: 0.44, rfoot: -0.33 }, arms) },
+      { t: 1.4, p: M(NOIK, { x: 0.27, air: 0.4, t: 4, h: 0, lt: 0, ls: 0, rt: 88, rs: 0, lfa: 90, rfa: 100 }, armsUp) },
+      { t: 2.0, p: M(NOIK, { x: 0.27, air: 0.4, t: 4, h: 0, lt: 0, ls: 0, rt: 88, rs: 0, lfa: 90, rfa: 100 }, armsUp) },
+      { t: 2.7, p: M(STAND, { x: -0.2, py: 0.74, t: 12, lfoot: 0.3, lfooty: 0.44, rfoot: -0.33 }, arms) },
+      { t: 3.4, p: M(STAND, { x: -0.28, lfoot: -0.2, rfoot: -0.33 }, db ? arms : {}) }
+    ],
+    props: { box: { x: 0.08, w: 0.6, h: 0.4 }, labels: [lab(0, 2.3, "WHOLE FOOT ON THE BOX", 0.2, 1.0), lab(0, 2.3, "DRIVE UP · KNEE HIGH", 1.1, 2.1, { accent: 1 }), lab(0, 2.3, "STEP DOWN SLOWLY", 2.2, 3.3)] } };
+  if (db) spec.gear = [{ type: "db", j: "handL" }, { type: "db", j: "handR" }];
+  return spec;
+}
+A("step_up", stepUpSpec(false));
+A("step_up_db", stepUpSpec(true));
+
+A("goblet_squat", { view: "side", dur: 4.6,
+  kf: [
+    { t: 0, p: M(STAND, { lu: 18, lf: 155, ru: 18, rf: 155 }) },
+    { t: 3.0, p: M(SQUAT, { t: 26, h: -15, py: 0.43, lu: 30, lf: 150, ru: 30, rf: 150 }) },
+    { t: 3.4, p: M(SQUAT, { t: 26, h: -15, py: 0.43, lu: 30, lf: 150, ru: 30, rf: 150 }), e: "out" },
+    { t: 4.6, p: M(STAND, { lu: 18, lf: 155, ru: 18, rf: 155 }) }
+  ],
+  gear: [{ type: "db", mid: ["handL", "handR"], dx: 0.05 }],
+  props: { labels: [lab(0, 1.95, "WEIGHT AT THE CHEST · 3 s DOWN", 0, 3.2, { accent: 1 }), lab(0, 1.95, "CHEST UP · STAND TALL", 3.3, 4.6)] } });
+
+A("sl_rdl_db", { view: "side", dur: 3.2, world: { x0: -1.4, x1: 1.4, y0: -0.1, y1: 2.05 },
+  base: M(NOIK, { lfa: 90, rfa: 90 }),
+  kf: [
+    { t: 0, p: { t: 3, lt: 0, ls: 0, rt: -5, rs: -10, lu: 2, lf: 2, ru: 2, rf: 2 } },
+    { t: 1.4, p: { t: 80, h: -5, lt: 8, ls: 0, rt: -78, rs: -80, lu: 4, lf: 4, ru: 4, rf: 4 } },
+    { t: 1.8, p: { t: 80, h: -5, lt: 8, ls: 0, rt: -78, rs: -80, lu: 4, lf: 4, ru: 4, rf: 4 } },
+    { t: 3.2, p: { t: 3, lt: 0, ls: 0, rt: -5, rs: -10, lu: 2, lf: 2, ru: 2, rf: 2 } }
+  ],
+  gear: [{ type: "db", j: "handL" }, { type: "db", j: "handR" }],
+  props: { labels: [lab(0, 1.95, "HIPS BACK · BACK FLAT · WEIGHTS CLOSE")] } });
+
+A("pallof_press", { view: "front", dur: 3.2, world: { x0: -1.5, x1: 1.3, y0: -0.1, y1: 2.05 },
+  base: { t: 0, py: 0.7, x: 0.15, lfoot: 0.42, rfoot: -0.12, lu: 30, lf: -95, ru: 30, rf: -95, luz: 0.7, ruz: 0.7 },
+  kf: [
+    { t: 0, p: {} },
+    { t: 0.7, p: { lu: -80, lf: -80, ru: -80, rf: -80, luz: 0.35, ruz: 0.35 } },
+    { t: 2.0, p: { lu: -80, lf: -80, ru: -80, rf: -80, luz: 0.35, ruz: 0.35 } },
+    { t: 2.7, p: {} },
+    { t: 3.2, p: {} }
+  ],
+  gear: [{ type: "cable", from: [-1.25, 1.06] }],
+  props: { labels: [lab(0.05, 1.95, "PRESS OUT · HOLD 2 s", 0.4, 2.2, { accent: 1 }), lab(0.05, 1.95, "DON'T LET THE BAND TURN YOU", 2.3, 3.2)] } });
+
+A("sl_balance_pad", { view: "front", dur: 3.0,
+  base: { t: 0, py: 0.89, x: 0.0, lfoot: 0.1, lfooty: 0.13, rfoot: -0.09, rfooty: 0.5, lu: 50, lf: 60, ru: 50, rf: 60 },
+  kf: [{ t: 0, p: { t: -2 } }, { t: 1.5, p: { t: 2, x: 0.01 } }, { t: 3.0, p: { t: -2 } }],
+  props: { box: { x: -0.2, w: 0.5, h: 0.09 }, labels: [lab(0, 1.95, "ONE LEG ON A PILLOW · STAY TALL")] } });
+
+A("cut_45_90", { view: "top", dur: 6.0, world: { x0: -3.2, x1: 3.4, y0: -3.5, y1: 1.9 }, trail: false, showMode: false,
+  props: {
+    cones: [[-1.2, -0.25], [1.2, -0.25]],
+    court: [[-1.2, -3.2, -1.2, -0.75], [-1.2, -0.75, -2.5, 0.55], [1.2, -3.2, 1.2, -0.75], [1.2, -0.75, 2.9, -0.75]],
+    labels: [lab(-2.2, 0.0, "45°", 0, 6, { accent: 1 }), lab(2.2, -0.15, "90°", 0, 6, { accent: 1 }), lab(0.1, 1.55, "PLANT THE OUTSIDE FOOT · STAY LOW")]
+  },
+  path: [
+    { t: 0, x: -1.2, y: -3.2, f: 0, m: "run" },
+    { t: 0.9, x: -1.2, y: -0.75, f: -45, m: "run" },
+    { t: 1.5, x: -2.5, y: 0.55, f: -45, m: "stand" },
+    { t: 1.9, x: -2.5, y: 0.55, f: 150, m: "walk" },
+    { t: 3.0, x: 1.2, y: -3.2, f: 0, m: "run" },
+    { t: 3.9, x: 1.2, y: -0.75, f: 90, m: "run" },
+    { t: 4.5, x: 2.9, y: -0.75, f: 90, m: "stand" },
+    { t: 4.9, x: 2.9, y: -0.75, f: -120, m: "walk" }
+  ] });
+
 const BY_NAME = {
   "W1 Fingertip Taps": "h_fingertip", "W2 Around the World": "h_around_world", "W3 Figure 8 Wraps": "h_fig8_wraps", "W4 Drop & Catch": "h_drop_catch",
   "01 Pound · Right": "h_pound_R", "02 Pound · Left": "h_pound_L", "03 Side-to-Side · Right": "h_side_R", "04 Side-to-Side · Left": "h_side_L",

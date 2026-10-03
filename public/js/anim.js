@@ -220,7 +220,7 @@ function resolveBall(k, J) {
 // ---------- drawing ----------
 export const THEME = {
   paper: "#FBF8F2", ink: "#1B1814", far: "#A39888", floor: "#CFC4B2", prop: "#BDB1A0", propFill: "#E9E1D2",
-  ball: "#E0571F", text: "#4B453C", signal: "#E0571F"
+  ball: "#E0571F", text: "#4B453C", signal: "#E0571F", gear: "#5B5348"
 };
 
 function setup(canvas) {
@@ -328,11 +328,12 @@ function limb(ctx, cam, pts, color, width) {
   ctx.stroke();
 }
 
-function drawBall(ctx, cam, b, dim) {
-  const r = 0.12 * cam.s;
+function drawBall(ctx, cam, b, dim, style) {
+  const r = (style === "mb" ? 0.11 : 0.12) * cam.s;
   ctx.globalAlpha = dim ? 0.45 : 1;
-  ctx.fillStyle = THEME.ball; ctx.strokeStyle = THEME.ink; ctx.lineWidth = 1.5;
+  ctx.fillStyle = style === "mb" ? THEME.gear : THEME.ball; ctx.strokeStyle = THEME.ink; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cam.X(b.x), cam.Y(b.y), r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (style === "mb") { ctx.globalAlpha = 1; return; }
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(cam.X(b.x) - r, cam.Y(b.y)); ctx.lineTo(cam.X(b.x) + r, cam.Y(b.y));
   ctx.moveTo(cam.X(b.x), cam.Y(b.y) - r); ctx.lineTo(cam.X(b.x), cam.Y(b.y) + r); ctx.stroke();
@@ -379,6 +380,59 @@ function drawSignal(ctx, cam, spec, t, w, h) {
       const r = h * 0.1, a = { right: 0, left: Math.PI, up: -Math.PI / 2, down: Math.PI / 2 }[g.arrow];
       ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.lineWidth = Math.max(5, r * 0.28); ctx.lineCap = "round"; ctx.lineJoin = "round";
       ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r * 0.8, 0); ctx.moveTo(r * 0.2, -r * 0.6); ctx.lineTo(r * 0.85, 0); ctx.lineTo(r * 0.2, r * 0.6); ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+// Training gear drawn on the figure (each item: { type, t0?, t1? }).
+//   rope  { period, phase }        jump rope turning from hand to hand (front view)
+//   band  { a, b, k }              mini band between two legs, k = 0 at the knee, 1 at the hip
+//   db    { j } | { mid: [a, b] }  dumbbell in a hand, or held at the chest by both hands (vertical)
+//   cable { from: [x, y] }         resistance band from an anchor to the hands
+function ropeAngle(g, t) { return Math.PI * 2 * ((t - (g.phase || 0)) / (g.period || 0.6)) + Math.PI; }
+function drawGear(ctx, cam, spec, t, J, layer) {
+  const list = spec.gear; if (!list) return;
+  const { X, Y, s } = cam;
+  const at = (j, k) => { const P = J[j]; return [P[0], P[1]]; };
+  for (const g of list) {
+    if (g.t0 !== undefined && (t < g.t0 || t > g.t1)) continue;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if (g.type === "rope") {
+      const th = ropeAngle(g, t), front = Math.sin(th) > 0;
+      if ((layer === "front") !== front) continue;
+      const hL = J.handL, hR = J.handR, cx = (hL[0] + hR[0]) / 2, cy = (hL[1] + hR[1]) / 2;
+      const mid = g.mid || 0.86, ry = g.ry || 0.98;
+      const apx = cx, apy = Math.max(-0.01, mid + ry * Math.cos(th));
+      ctx.strokeStyle = front ? THEME.signal : THEME.far; ctx.lineWidth = Math.max(2, 0.022 * s);
+      ctx.beginPath(); ctx.moveTo(X(hL[0]), Y(hL[1]));
+      ctx.quadraticCurveTo(X(2 * apx - cx), Y(2 * apy - cy), X(hR[0]), Y(hR[1]));
+      ctx.stroke();
+      continue;
+    }
+    if (layer !== "front") continue;
+    if (g.type === "band") {
+      const k = g.k === undefined ? 0.15 : g.k;
+      const pt = (side) => { const H = J["hip" + side], K = J["knee" + side]; return [K[0] + (H[0] - K[0]) * k, K[1] + (H[1] - K[1]) * k]; };
+      const A = pt(g.a || "L"), B = pt(g.b || "R");
+      ctx.strokeStyle = THEME.signal; ctx.lineWidth = Math.max(3, 0.045 * s);
+      ctx.beginPath(); ctx.moveTo(X(A[0]), Y(A[1])); ctx.lineTo(X(B[0]), Y(B[1])); ctx.stroke();
+    } else if (g.type === "cable") {
+      const H = [(J.handL[0] + J.handR[0]) / 2, (J.handL[1] + J.handR[1]) / 2];
+      ctx.strokeStyle = THEME.signal; ctx.lineWidth = Math.max(2.5, 0.03 * s);
+      ctx.beginPath(); ctx.moveTo(X(g.from[0]), Y(g.from[1])); ctx.lineTo(X(H[0]), Y(H[1])); ctx.stroke();
+      ctx.fillStyle = THEME.prop; ctx.fillRect(X(g.from[0]) - 0.04 * s, Y(g.from[1] + 0.25), 0.08 * s, (g.from[1] + 0.25) * s);
+      ctx.fillStyle = THEME.signal; ctx.beginPath(); ctx.arc(X(g.from[0]), Y(g.from[1]), Math.max(3, 0.035 * s), 0, Math.PI * 2); ctx.fill();
+    } else if (g.type === "db") {
+      let P, vertical = !!g.mid;
+      if (g.mid) { const A = J[g.mid[0]], B = J[g.mid[1]]; P = [(A[0] + B[0]) / 2 + (g.dx || 0), (A[1] + B[1]) / 2 + (g.dy || 0)]; }
+      else P = at(g.j);
+      const len = 0.24, pw = 0.055, ph = 0.13;
+      ctx.save(); ctx.translate(X(P[0]), Y(P[1])); if (vertical) ctx.rotate(Math.PI / 2);
+      ctx.strokeStyle = THEME.gear; ctx.lineWidth = Math.max(2, 0.025 * s);
+      ctx.beginPath(); ctx.moveTo(-len / 2 * s, 0); ctx.lineTo(len / 2 * s, 0); ctx.stroke();
+      ctx.fillStyle = THEME.gear;
+      for (const sx of [-1, 1]) ctx.fillRect((sx * len / 2 - pw / 2) * s, -ph / 2 * s, pw * s, ph * s);
       ctx.restore();
     }
   }
@@ -482,9 +536,11 @@ export function drawFrame(canvas, spec, t) {
   const J = solve(p, spec.view);
   const b = ballPos(spec, t, J);
   const behind = b && !b.hide && (b.z < 0);
-  if (behind) drawBall(ctx, cam, b, true);
+  if (behind) drawBall(ctx, cam, b, true, spec.ballStyle);
+  drawGear(ctx, cam, spec, t, J, "back");
   drawFigure(ctx, cam, J, spec.view, spec.near);
-  if (b && !b.hide && !behind) drawBall(ctx, cam, b, false);
+  drawGear(ctx, cam, spec, t, J, "front");
+  if (b && !b.hide && !behind) drawBall(ctx, cam, b, false, spec.ballStyle);
   drawSignal(ctx, cam, spec, t, w, h);
 }
 
@@ -533,6 +589,13 @@ export function mirrorSpec(spec) {
     if (b.mid) nb.mid = b.mid.map((j) => j.replace(/L$/, "#").replace(/R$/, "L").replace(/#$/, "R"));
     if (spec.view === "front") { if (typeof b.x === "number") nb.x = -b.x; if (typeof b.dx === "number") nb.dx = -b.dx; }
     return nb;
+  });
+  if (spec.gear) out.gear = spec.gear.map((g) => {
+    const ng = Object.assign({}, g), sw = (j) => j.replace(/L$/, "#").replace(/R$/, "L").replace(/#$/, "R");
+    if (g.j) ng.j = sw(g.j);
+    if (g.mid) ng.mid = g.mid.map(sw);
+    if (spec.view === "front" && g.from) ng.from = [-g.from[0], g.from[1]];
+    return ng;
   });
   if (spec.view === "front" && spec.props) {
     const pr = Object.assign({}, spec.props);
